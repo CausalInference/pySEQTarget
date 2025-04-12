@@ -4,7 +4,9 @@ import polars as pl
 from .SEQopts import SEQopts
 from .initialization import __outcome, __numerator, __denominator, __censor_numerator, __censor_denominator
 from .expansion import __mapper, __binder, __dynamic, __randomSelection
-from .weighting import __weight_prepare_date, __weight_model, __weight_predict, __weight_bind, __weight_cumprod
+from .weighting import __weight_prepare_data, __weight_model, __weight_predict, __weight_bind, __weight_cumprod
+from .analysis import __outcome_predict, __survival_prepare_data, __survival_predict
+from .plot import __survival_plot
 
 
 class SEQuential:
@@ -78,5 +80,8 @@ class SEQuential:
             
     def outcome():
 
+    def survival():
+        pass
 
-
+    def plot():
+        pass

@@ -1,1 +1,1 @@
-def __weight_prepare_date():
+def __weight_prepare_data():
