@@ -12,6 +12,7 @@ def __binder(DT, data, id_col, time_col,
                 f'{time_col}{squared_indicator}',
                 'tx_lag'}
     cols = cols.union({eligible_col, excused_col0, excused_col1})
+    cols = {col for col in cols if col is not None}
    
     regular = {col for col in cols if not (baseline_indicator in col or squared_indicator in col) and col not in excluded}
     baseline = {col for col in cols if baseline_indicator in col and col not in excluded}

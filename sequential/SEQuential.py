@@ -38,6 +38,8 @@ class SEQuential:
         self.random_selection = parameters['random_selection']
         self.baseline_indicator = parameters['indicator_baseline']
         self.squared_indicator = parameters['indicator_squared']
+        self.excused_col0 = parameters['excused_col0']
+        self.excused_col1 = parameters['excused_col1']
 
         if parameters['covariates'] is None:
             self.covariates = __outcome()
@@ -64,7 +66,8 @@ class SEQuential:
     def expand(self):
         self.DT = __binder(__mapper(self.data), self.data, __colString([
             self.covariates, self.numerator, self.denominator, self.censor_numerator, self.censor_denominator
-            ]), self.baseline_indicator, self.squared_indicator)
+            ]), self.eligible_col, self.excused_col0, self.excused_col1,
+            self.baseline_indicator, self.squared_indicator)
         
         if self.method != "ITT":
             self.DT = __dynamic(self.DT)
