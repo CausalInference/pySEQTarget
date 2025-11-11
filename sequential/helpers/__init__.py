@@ -1,1 +1,0 @@
-from __colString import colString

@@ -1,1 +1,0 @@
-def __weight_bind():
