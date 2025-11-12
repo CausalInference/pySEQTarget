@@ -1,1 +1,1 @@
-from ._survivalPlot import _survival_plot
+from ._survival_plot import _survival_plot

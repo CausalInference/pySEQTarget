@@ -96,35 +96,50 @@ def _calculate_risk(self):
                     (pl.col("pred_risk") - z * pl.col("SE")).alias("LCI"),
                     (pl.col("pred_risk") + z * pl.col("SE")).alias("UCI")
                 ])
+            risk = risk.with_columns(pl.lit(i).alias(self.treatment_col)).select([
+                "followup",
+                self.treatment_col,
+                "pred_risk",
+                "SE",
+                "LCI",
+                "UCI"
+            ])
+            
             fup0 = pl.DataFrame({
                 "followup": [0],
+                self.treatment_col: [i],
                 "pred_risk": [0.0],
                 "SE": [0.0],
                 "LCI": [0.0],
-                "UCI": [0.0],
-                self.treatment_col: [i]
-                }).with_columns([
-                    pl.col("followup").cast(pl.Int64),
-                    pl.col(self.treatment_col).cast(pl.Int32)
-                    ])
+                "UCI": [0.0]
+            }).with_columns([
+                pl.col("followup").cast(pl.Int64),
+                pl.col(self.treatment_col).cast(pl.Int32)
+            ])
         else:
+            risk = TxDT.select(["followup", "pred_risk"]).sort("followup").with_columns([
+                pl.lit(i).alias(self.treatment_col)
+            ]).select([
+                "followup",
+                self.treatment_col,
+                "pred_risk"
+            ])
+            
             fup0 = pl.DataFrame({
                 "followup": [0],
-                "pred_risk": [0.0],
-                self.treatment_col: [i]
-                }).with_columns([
-                    pl.col("followup").cast(pl.Int64),
-                    pl.col(self.treatment_col).cast(pl.Int32)
-                    ])
-            risk = TxDT.select(["followup", "pred_risk"]).sort("followup")
+                self.treatment_col: [i],
+                "pred_risk": [0.0]
+            }).with_columns([
+                pl.col("followup").cast(pl.Int64),
+                pl.col(self.treatment_col).cast(pl.Int32)
+            ])
         
-        risk = risk.with_columns(pl.lit(i).alias(self.treatment_col))
         risk = pl.concat([fup0, risk])
         risks.append(risk)
     
-    out = pl.concat(risks, how='vertical') \
+    out = pl.concat(risks) \
         .with_columns(pl.lit("risk").alias("estimate")) \
-            .rename({"pred_risk": "pred"})
+        .rename({"pred_risk": "pred"})
     return out
         
 

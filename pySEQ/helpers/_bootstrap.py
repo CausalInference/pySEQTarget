@@ -14,8 +14,8 @@ def _prepare_boot_data(self, data, boot_id):
     
     bootstrapped = data.join(counts, on=self.id_col, how="inner")
     bootstrapped = bootstrapped.with_columns(
-        pl.int_range(0, pl.col("count")).alias("replicate").explode("replicate")
-    ).with_columns(
+        pl.int_ranges(0, pl.col("count")).alias("replicate")
+    ).explode("replicate").with_columns(
         (pl.col(self.id_col).cast(pl.Utf8) + "_" + pl.col("replicate").cast(pl.Utf8)).alias(self.id_col)
     ).drop("count", "replicate")
     
@@ -56,4 +56,3 @@ def bootstrap_loop(method):
         self.outcome_model = results
         return results
     return wrapper
-        
