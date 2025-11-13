@@ -89,18 +89,6 @@ class SEQuential:
             self.DT = _randomSelection(self.DT)
         end = time.perf_counter()
         self.expansion_time = _format_time(start, end)
-
-    def weight(self):
-        start = time.perf_counter()
-        
-        WDT = _weight_setup(self)
-        _fit_LTFU(self, WDT)
-        _fit_numerator(self, WDT)
-        _fit_denominator(self, WDT)
-        WDT = _weight_bind(self, WDT)
-        
-        end = time.perf_counter()
-        self.weighting_time = _format_time(start, end)
         
     def bootstrap(self, **kwargs):
         allowed = {"bootstrap_nboot", "bootstrap_sample", 
@@ -124,13 +112,22 @@ class SEQuential:
     
     @bootstrap_loop      
     def fit(self):
-        if self.weighted and "weight" not in self.DT:
-            print("It seems like you have not weighted your data yet, consider running the weight() method first.")
+        start = time.perf_counter()
+        if self.weighted:
+            WDT = _weight_setup(self)
+            _fit_LTFU(self, WDT)
+            _fit_numerator(self, WDT)
+            _fit_denominator(self, WDT)
+            self.DT = _weight_bind(self, WDT)
+        
+        end = time.perf_counter()
+        self.model_time = _format_time(start, end)
         return _outcome_fit(self.DT,
                             self.outcome_col,
                             self.covariates,
                             self.weighted,
                             "weight")
+        
     def survival(self):
         start = time.perf_counter()
         
