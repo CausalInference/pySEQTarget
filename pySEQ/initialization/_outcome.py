@@ -1,6 +1,5 @@
 
 def _outcome(self) -> str:
-    # Creation for common formula elements =====
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
     dose = "+".join(["dose", f"dose{self.indicator_squared}"])
     interaction = f"{tx_bas}*followup"
@@ -22,12 +21,10 @@ def _outcome(self) -> str:
     else:
         followup = None
     
-    # Formula creation ==========================
     if self.method == "ITT":
         parts = [tx_bas, followup, trial, fixed, tv_bas, interaction]
         return "+".join(filter(None, parts))
     
-    # Weighted ==================================
     if self.weighted:
         if self.weight_preexpansion:
             if self.method == "dose-response":
@@ -44,7 +41,6 @@ def _outcome(self) -> str:
                 parts = [tx_bas, followup, trial, fixed, tv_bas, interaction]
         return "+".join(filter(None, parts))
     
-    # Unweighted ===============================
     if self.method == "dose-response":
         parts = [dose, followup, trial, fixed, tv_bas, interaction_dose]
     elif self.method == "censoring":
