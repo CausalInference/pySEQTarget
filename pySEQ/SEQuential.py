@@ -88,6 +88,7 @@ class SEQuential:
             ).cast(pl.Int8)
             .alias("switch")
         ])
+        # cast things to enum (treatment) and categorical (fixed cols)
         
         self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
                           self.id_col, self.time_col, self.eligible_col, self.outcome_col,

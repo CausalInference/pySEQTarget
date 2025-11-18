@@ -40,7 +40,7 @@ def _fit_numerator(self, WDT: pl.DataFrame):
         model_fit = model.fit()
         fits.append(model_fit)
         
-    self.denominator_model = model_fit
+    self.numerator_model = model_fit
         
 def _fit_denominator(self, WDT):
     if self.method == "ITT":
