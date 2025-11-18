@@ -11,7 +11,9 @@ def _binder(DT, data, id_col, time_col, eligible_col, outcome_col, kept_cols,
                 f"followup{squared_indicator}",
                 "tx_lag",
                 "trial",
-                f"trial{squared_indicator}"}
+                f"trial{squared_indicator}",
+                time_col, 
+                f"{time_col}{squared_indicator}"}
     
     cols = kept_cols.union({eligible_col, outcome_col})
     cols = {col for col in cols if col is not None}

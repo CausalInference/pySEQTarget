@@ -10,7 +10,7 @@ from .SEQopts import SEQopts
 from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
 from .expansion import _mapper, _binder, _dynamic, _randomSelection
-from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind
+from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict
 from .analysis import _outcome_fit, _calculate_risk, _calculate_survival
 from .plot import _survival_plot
 
@@ -69,12 +69,25 @@ class SEQuential:
                 self.subgroup_colname,
                 self.weight_eligible_colnames]
         
-        self.data = self.data.with_columns(
+        self.data = self.data.with_columns([
             pl.when(pl.col(self.treatment_col).is_in(self.treatment_level))
             .then(self.eligible_col)
             .otherwise(0)
-            .alias(self.eligible_col)
-        )
+            .alias(self.eligible_col),
+            pl.col(self.treatment_col)
+            .shift(1)
+            .over([self.id_col])
+            .alias("tx_lag"),
+            pl.lit(False).alias("switch")
+        ]).with_columns([
+            pl.when(pl.col(self.time_col) == 0)
+            .then(pl.lit(False))
+            .otherwise(
+                (pl.col("tx_lag").is_not_null()) &
+                (pl.col("tx_lag") != pl.col(self.treatment_col))
+            ).cast(pl.Int8)
+            .alias("switch")
+        ])
         
         self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
                           self.id_col, self.time_col, self.eligible_col, self.outcome_col,
@@ -123,7 +136,10 @@ class SEQuential:
             _fit_LTFU(self, WDT)
             _fit_numerator(self, WDT)
             _fit_denominator(self, WDT)
-            self.DT = _weight_bind(self, WDT)
+            
+            WDT = pl.from_pandas(WDT)
+            _weight_predict(self, WDT)
+            _weight_bind(self, WDT)
         
         end = time.perf_counter()
         self.model_time = _format_time(start, end)

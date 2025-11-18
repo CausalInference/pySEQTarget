@@ -1,2 +1,3 @@
-def _weight_bind(self):
-    pass
+def _weight_bind(self, WDT):
+    for i in self.treatment_level:
+        pass

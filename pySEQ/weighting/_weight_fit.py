@@ -28,8 +28,9 @@ def _fit_numerator(self, WDT: pl.DataFrame):
         return
     predictor = "switch" if self.method == "censoring" else self.treatment_col
     formula = f"{predictor}~{self.numerator}"
-    tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
+    tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if not self.weight_preexpansion else self.treatment_col
     fits = []
+    
     for i in self.treatment_level:
         DT_subset = WDT[WDT[tx_bas] == i]
         model = smf.mnlogit(
@@ -42,13 +43,11 @@ def _fit_numerator(self, WDT: pl.DataFrame):
     self.denominator_model = model_fit
         
 def _fit_denominator(self, WDT):
-    for i in WDT.columns:
-        print(i)
     if self.method == "ITT":
         return
     predictor = "switch" if self.method == "censoring" else self.treatment_col
     formula = f"{predictor}~{self.denominator}"
-    tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
+    tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if not self.weight_preexpansion else self.treatment_col
     fits = []
     for i in self.treatment_level:
         DT_subset = WDT[WDT[tx_bas] == i]
