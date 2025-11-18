@@ -1,2 +1,2 @@
-def _weight_bind():
+def _weight_bind(self):
     pass

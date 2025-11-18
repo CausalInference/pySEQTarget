@@ -1,6 +1,8 @@
 import polars as pl
 
 def _weight_setup(self):
+    DT = self.DT
+    data = self.data
     if not self.weight_preexpansion:
         baseline_lag = self.data.select([self.treatment_col, self.id_col, self.time_col]) \
             .sort([self.id_col, self.time_col]) \
@@ -11,14 +13,14 @@ def _weight_setup(self):
                               .drop(self.treatment_col) \
                                   .rename({self.time_col : "period"})
         
-        fup0 = self.DT.filter(pl.col("followup" == 0)) \
+        fup0 = DT.filter(pl.col("followup") == 0) \
             .join(
                 baseline_lag,
                 on = [self.id_col, "period"],
                 how = "inner"
             )
         
-        fup = self.DT.sort([self.id_col, "trial", "followup"]) \
+        fup = DT.sort([self.id_col, "trial", "followup"]) \
             .with_columns(pl.col(self.treatment_col)
                           .over([self.id_col, "trial"])
                           .shift(fill_value=self.treatment_level[0])
@@ -27,7 +29,7 @@ def _weight_setup(self):
         
         WDT = pl.concat([fup0, fup])
     else:
-        WDT = self.data.with_columns(pl.col(self.treatment_col)
+        WDT = data.with_columns(pl.col(self.treatment_col)
                                    .over(self.id_col)
                                    .shift(fill_value=self.treatment_level[0])
                                    .alias("tx_lag"),

@@ -55,7 +55,7 @@ class SEQuential:
             if self.denominator is None:
                 self.denominator = _denominator(self)
 
-            if self.cense is not None:
+            if self.cense_colname is not None:
                 if self.cense_numerator is None:
                     self.cense_numerator = _cense_numerator()
 
@@ -84,9 +84,9 @@ class SEQuential:
                           self.indicator_baseline, self.indicator_squared)
         
         if self.method != "ITT":
-            self.DT = _dynamic(self.DT)
+            _dynamic(self)
         if self.selection_random:
-            self.DT = _randomSelection(self.DT)
+            _randomSelection(self.DT)
         end = time.perf_counter()
         self.expansion_time = _format_time(start, end)
         
