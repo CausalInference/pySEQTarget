@@ -7,7 +7,7 @@ import polars as pl
 import numpy as np
 
 from .SEQopts import SEQopts
-from .helpers import _col_string, bootstrap_loop, _format_time
+from .helpers import _col_string, bootstrap_loop, _format_time, _prepare_data
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
 from .expansion import _mapper, _binder, _dynamic, _randomSelection
 from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict, _weight_stats
@@ -88,14 +88,18 @@ class SEQuential:
             ).cast(pl.Int8)
             .alias("switch")
         ])
-        # cast things to enum (treatment) and categorical (fixed cols)
         
         self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
                           self.id_col, self.time_col, self.eligible_col, self.outcome_col,
                           _col_string([self.covariates, 
                                       self.numerator, self.denominator, 
                                       self.cense_numerator, self.cense_denominator]).union(kept), 
-                          self.indicator_baseline, self.indicator_squared)
+                          self.indicator_baseline, self.indicator_squared) \
+                              .with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
+        self.data = self.data.with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
+        
+        #self.data = _prepare_data(self, self.data)
+        #self.DT = _prepare_data(self, self.DT)
         
         if self.method != "ITT":
             _dynamic(self)
@@ -103,7 +107,7 @@ class SEQuential:
             _randomSelection(self.DT)
         end = time.perf_counter()
         self.expansion_time = _format_time(start, end)
-        
+                    
     def bootstrap(self, **kwargs):
         allowed = {"bootstrap_nboot", "bootstrap_sample", 
                    "bootstrap_CI", "bootstrap_method"}
@@ -131,8 +135,11 @@ class SEQuential:
             WDT = _weight_setup(self)
             if not self.weight_preexpansion and not self.excused:
                 WDT = WDT.filter(pl.col("followup") > 0)
-            
+                
             WDT = WDT.to_pandas()
+            for col in self.fixed_cols:
+                if col in WDT.columns:
+                    WDT[col] = WDT[col].astype("category")
             
             _fit_LTFU(self, WDT)
             _fit_numerator(self, WDT)
@@ -146,7 +153,8 @@ class SEQuential:
         
         end = time.perf_counter()
         self.model_time = _format_time(start, end)
-        return _outcome_fit(self.DT,
+        return _outcome_fit(self,
+                            self.DT,
                             self.outcome_col,
                             self.covariates,
                             self.weighted,

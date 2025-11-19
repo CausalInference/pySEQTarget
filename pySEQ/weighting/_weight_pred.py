@@ -25,13 +25,13 @@ def _weight_predict(self, WDT):
             pred_num = np.ones(subset.height)
 
             if self.denominator_model is not None:
-                p = _predict_model(self.denominator_model, subset) \
+                p = _predict_model(self, self.denominator_model, subset) \
                     .reshape(subset.height, classes)[:, i]
                 same_tx = (subset[self.treatment_col] == level).to_numpy()
                 pred_denom = np.where(same_tx, p, 1. - p)
                     
             if self.numerator_model is not None:
-                p = _predict_model(self.numerator_model, subset) \
+                p = _predict_model(self, self.numerator_model, subset) \
                     .reshape(subset.height, classes)[:, i]
                 same_tx = (subset[self.treatment_col] == level).to_numpy()
                 pred_num = np.where(same_tx, p, 1. - p)
@@ -45,8 +45,8 @@ def _weight_predict(self, WDT):
         WDT = pl.concat(weights).sort(grouping + [time])
         
         if self.cense_colname is not None:
-            p_num = _predict_model(self.cense_numerator, WDT)
-            p_denom = _predict_model(self.cense_denominator, WDT)
+            p_num = _predict_model(self, self.cense_numerator, WDT)
+            p_denom = _predict_model(self, self.cense_denominator, WDT)
             
             WDT = WDT.with_columns([
                 pl.Series("cense_numerator", p_num),

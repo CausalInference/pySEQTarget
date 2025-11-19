@@ -1,7 +1,6 @@
 import concurrent.futures
 import polars as pl
 import numpy as np
-from ._outcome_fit import _outcome_fit
 from ..helpers import _predict_model
 
 def _get_outcome_predictions(self, newdata):
@@ -10,9 +9,9 @@ def _get_outcome_predictions(self, newdata):
     
     if self.parallel and self.ncores > 1:
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.ncores) as executor:
-            preds = list(executor.map(_predict_model, self.outcome_model, newdata))
+            preds = list(executor.map(_predict_model, self, self.outcome_model, newdata))
     else:
-        preds = [_predict_model(model, newdata) for model in self.outcome_model]
+        preds = [_predict_model(self, model, newdata) for model in self.outcome_model]
     
     return preds
 

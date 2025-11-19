@@ -4,7 +4,7 @@ def _weight_setup(self):
     DT = self.DT
     data = self.data
     if not self.weight_preexpansion:
-        baseline_lag = self.data.select([self.treatment_col, self.id_col, self.time_col]) \
+        baseline_lag = data.select([self.treatment_col, self.id_col, self.time_col]) \
             .sort([self.id_col, self.time_col]) \
             .with_columns(pl.col(self.treatment_col)
                           .over(self.id_col)

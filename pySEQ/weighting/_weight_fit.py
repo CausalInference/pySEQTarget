@@ -33,6 +33,7 @@ def _fit_numerator(self, WDT: pl.DataFrame):
     
     for i in self.treatment_level:
         DT_subset = WDT[WDT[tx_bas] == i]
+        print(DT_subset)
         model = smf.mnlogit(
             formula,
             DT_subset
