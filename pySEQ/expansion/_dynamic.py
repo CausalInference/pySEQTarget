@@ -13,6 +13,8 @@ def _dynamic(self):
             (pl.col("dose") ** 2)
             .alias(f"dose{self.squared_indicator}")
         ])
+        self.DT = DT
+        
     elif self.method == "censoring":
         DT = self.DT.sort([self.id_col, "trial", "followup"]).with_columns(
             pl.col(self.treatment_col).shift(1).over([self.id_col, "trial"]).alias("tx_lag")
@@ -38,15 +40,17 @@ def _dynamic(self):
                     )
             
             if conditions:
+                excused = pl.any_horizontal(conditions)
                 switch = (
                     pl.when(pl.any_horizontal(conditions))
                     .then(pl.lit(False))
                     .otherwise(switch) 
                 )
 
-        DT = DT.with_columns(
-            switch.alias("switch")
-        ).filter(
+        DT = DT.with_columns([
+            switch.alias("switch"),
+            excused.alias("isExcused") if self.excused else pl.lit(False).alias("isExcused")
+        ]).filter(
             pl.col("switch").cum_max().over([self.id_col, "trial"])
             .shift(1, fill_value=False) 
             == 0
