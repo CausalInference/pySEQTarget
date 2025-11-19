@@ -44,6 +44,10 @@ def test_PreE_dose_response_covariates():
     )
     s.expand()
     s.fit()
+    print(s.weight_stats)
+    print(s.numerator_models[0].summary())
+    print(s.numerator_models[1].summary())
+    
     matrix = s.outcome_model[0].summary2().tables[1]
     return print(matrix)
 test_PreE_dose_response_covariates()

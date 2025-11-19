@@ -4,7 +4,7 @@ import numpy as np
 
 def _weight_predict(self, WDT):
     grouping = [self.id_col]
-    grouping += ["trial"] if not self.weight_preexpansion else []
+    grouping += ["trial"] if self.weight_preexpansion else []
     time = self.time_col if self.weight_preexpansion else "followup"
     classes = len(self.treatment_level)
     weights = []
