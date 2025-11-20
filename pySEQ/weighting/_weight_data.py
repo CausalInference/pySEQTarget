@@ -27,7 +27,7 @@ def _weight_setup(self):
                           .alias("tx_lag")
                           ).filter(pl.col("followup") != 0)
         
-        WDT = pl.concat([fup0, fup])
+        WDT = pl.concat([fup0, fup]).sort([self.id_col, "trial", "followup"])
     else:
         WDT = data.with_columns(pl.col(self.treatment_col)
                                    .shift(fill_value=self.treatment_level[0])

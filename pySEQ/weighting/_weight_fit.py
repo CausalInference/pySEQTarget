@@ -24,7 +24,7 @@ def _fit_numerator(self, WDT):
         return
     if self.method == "ITT":
         return
-    predictor = "switch" if self.method == "censoring" else self.treatment_col
+    predictor = "switch" if self.excused and not self.weight_preexpansion else self.treatment_col
     formula = f"{predictor}~{self.numerator}"
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if not self.weight_preexpansion else "tx_lag"
     fits = []
@@ -42,12 +42,16 @@ def _fit_numerator(self, WDT):
 def _fit_denominator(self, WDT):
     if self.method == "ITT":
         return
-    predictor = "switch" if self.method == "censoring" else self.treatment_col
+    predictor = "switch" if self.excused and not self.weight_preexpansion else self.treatment_col
     formula = f"{predictor}~{self.denominator}"
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if not self.weight_preexpansion else "tx_lag"
     fits = []
     for i in self.treatment_level:
         DT_subset = WDT[WDT[tx_bas] == i]
+        
+        if not self.weight_preexpansion:
+            DT_subset = DT_subset[DT_subset['followup'] != 0]
+        
         model = smf.mnlogit(
             formula,
             DT_subset

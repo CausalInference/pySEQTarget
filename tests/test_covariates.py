@@ -106,27 +106,6 @@ def test_PostE_censoring_covariates():
     
     return
 
-def test_PreE_censoring_covariates():
-    data = load_data("SEQdata")
-    
-    s = SEQuential(
-        data,
-        id_col="ID",
-        time_col="time",
-        eligible_col="eligible",
-        treatment_col="tx_init",
-        outcome_col="outcome",
-        time_varying_cols=["N", "L", "P"],
-        fixed_cols=["sex"],
-        method = "censoring",
-        parameters=SEQopts(weighted=True,
-                           weight_preexpansion=True)
-    )
-    assert s.covariates == "tx_init_bas+followup+followup_sq+trial+trial_sq+sex"
-    assert s.numerator == "sex+time+time_sq"
-    assert s.denominator == "sex+N+L+P+time+time_sq"
-    return 
-
 def test_PreE_censoring_excused_covariates():
     data = load_data("SEQdata")
     

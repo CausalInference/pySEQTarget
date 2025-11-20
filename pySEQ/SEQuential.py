@@ -153,6 +153,7 @@ class SEQuential:
             WDT = _weight_predict(self, WDT)
             _weight_bind(self, WDT)
             self.weight_stats = _weight_stats(self)
+            self.DT.write_csv("test.csv")
         
         end = time.perf_counter()
         self.model_time = _format_time(start, end)

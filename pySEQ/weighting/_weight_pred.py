@@ -67,6 +67,6 @@ def _weight_predict(self, WDT):
     else:
         WDT = WDT.with_columns(pl.lit(1.).alias("cense"))
     
-    kept = ["numerator", "denominator", "cense", self.id_col, "trial", time]
+    kept = ["numerator", "denominator", "cense", self.id_col, "trial", time, "tx_lag"]
     exists = [col for col in kept if col in WDT.columns]
     return WDT.select(exists).sort(grouping + [time])
