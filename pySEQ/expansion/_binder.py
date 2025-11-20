@@ -1,6 +1,6 @@
 import polars as pl
 
-def _binder(DT, data, id_col, time_col, eligible_col, outcome_col, kept_cols, 
+def _binder(DT, data, id_col, time_col, eligible_col, outcome_col, treatment_col, kept_cols, 
             baseline_indicator, squared_indicator):
     """
     Internal function to bind data to the map created by __mapper
@@ -15,7 +15,7 @@ def _binder(DT, data, id_col, time_col, eligible_col, outcome_col, kept_cols,
                 time_col, 
                 f"{time_col}{squared_indicator}"}
     
-    cols = kept_cols.union({eligible_col, outcome_col})
+    cols = kept_cols.union({eligible_col, outcome_col, treatment_col})
     cols = {col for col in cols if col is not None}
 
     regular = {col for col in cols if not (baseline_indicator in col or squared_indicator in col) and col not in excluded}
@@ -33,28 +33,30 @@ def _binder(DT, data, id_col, time_col, eligible_col, outcome_col, kept_cols,
         left_on=[id_col, 'period'],
         right_on=[id_col, time_col],
         how='left'
-    )
-    DT.sort([id_col, "trial", "followup"])
-    
-    for i in ["trial", "followup"]:
-        colname = f"{i}{squared_indicator}"
-        DT = DT.with_columns((pl.col(i) ** 2).alias(colname))
+    )  
+    DT = DT.sort([id_col, "trial", "followup"]) \
+        .with_columns([
+            (pl.col("trial") ** 2).alias(f"trial{squared_indicator}"),
+            (pl.col("followup") ** 2).alias(f"followup{squared_indicator}")
+        ])
     
     if squared:
+        squares = []
         for sq in squared:
             col = sq.replace(squared_indicator, '')
-            DT = DT.with_columns(
-                (pl.col(col) ** 2).alias(f"{col}{squared_indicator}")
-            )
+            squares.append((pl.col(col) ** 2).alias(f"{col}{squared_indicator}"))
+        DT = DT.with_columns(squares)
+        
+    baseline_cols = {bas.replace(baseline_indicator, '') for bas in baseline}
+    needed = {eligible_col, treatment_col}
+    baseline_cols.update({c for c in needed})
     
-    if baseline:
-        base = [bas.replace(baseline_indicator, '') for bas in baseline] + [eligible_col]
-        for col in base:
-            DT = DT.with_columns(
-                pl.col(col).first().over([id_col, 'trial']).alias(f"{col}{baseline_indicator}")
-            )
-
-    DT = DT.filter(pl.col(f"{eligible_col}{baseline_indicator}") == 1) \
-    .drop([f"{eligible_col}{baseline_indicator}", eligible_col])         
+    bas = [
+        pl.col(c).first().over([id_col, 'trial']).alias(f"{c}{baseline_indicator}")
+        for c in baseline_cols
+    ]
+    
+    DT = DT.with_columns(bas).filter(pl.col(f"{eligible_col}{baseline_indicator}") == 1) \
+           .drop([f"{eligible_col}{baseline_indicator}", eligible_col])         
     
     return DT

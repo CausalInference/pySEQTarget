@@ -7,8 +7,8 @@ def _weight_setup(self):
         baseline_lag = data.select([self.treatment_col, self.id_col, self.time_col]) \
             .sort([self.id_col, self.time_col]) \
             .with_columns(pl.col(self.treatment_col)
-                          .over(self.id_col)
                           .shift(fill_value=self.treatment_level[0])
+                          .over(self.id_col)
                           .alias("tx_lag")) \
                               .drop(self.treatment_col) \
                                   .rename({self.time_col : "period"})
@@ -22,16 +22,16 @@ def _weight_setup(self):
         
         fup = DT.sort([self.id_col, "trial", "followup"]) \
             .with_columns(pl.col(self.treatment_col)
-                          .over([self.id_col, "trial"])
                           .shift(fill_value=self.treatment_level[0])
+                          .over([self.id_col, "trial"])
                           .alias("tx_lag")
                           ).filter(pl.col("followup") != 0)
         
-        WDT = pl.concat([fup0, fup])
+        WDT = pl.concat([fup0, fup]).sort([self.id_col, "trial", "followup"])
     else:
         WDT = data.with_columns(pl.col(self.treatment_col)
-                                   .over(self.id_col)
                                    .shift(fill_value=self.treatment_level[0])
+                                   .over(self.id_col)
                                    .alias("tx_lag"),
                                    (pl.col(self.time_col) ** 2).alias(f"{self.time_col}{self.indicator_squared}"))
     return WDT

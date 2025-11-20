@@ -5,7 +5,7 @@ def _outcome(self) -> str:
     interaction = f"{tx_bas}*followup"
     interaction_dose = "+".join(["followup*dose", f"followup*dose{self.indicator_squared}"])
     
-    if self.hazard or self.km_curves:
+    if self.hazard or not self.km_curves:
         interaction = interaction_dose = None
     
     tv_bas = (

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 import sys
 import time
 from dataclasses import asdict
@@ -7,7 +7,8 @@ import polars as pl
 import numpy as np
 
 from .SEQopts import SEQopts
-from .helpers import _col_string, bootstrap_loop, _format_time, _prepare_data
+from .error import _param_checker
+from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
 from .expansion import _mapper, _binder, _dynamic, _randomSelection
 from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict, _weight_stats
@@ -26,9 +27,9 @@ class SEQuential:
             outcome_col: str,
             time_varying_cols: Optional[List[str]] = None,
             fixed_cols: Optional[List[str]] = None,
-            method: str = "ITT",
+            method: Literal["ITT", "dose-response", "censoring"] = "ITT",
             parameters: Optional[SEQopts] = None
-    ):
+    ) -> None:
         self.data = data
         self.id_col = id_col
         self.time_col = time_col
@@ -61,6 +62,8 @@ class SEQuential:
 
                 if self.cense_denominator is None:
                     self.cense_denominator = _cense_denominator()
+        
+        _param_checker(self)
 
     def expand(self):
         start = time.perf_counter()
@@ -91,15 +94,13 @@ class SEQuential:
         
         self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
                           self.id_col, self.time_col, self.eligible_col, self.outcome_col,
+                          self.treatment_col,
                           _col_string([self.covariates, 
                                       self.numerator, self.denominator, 
                                       self.cense_numerator, self.cense_denominator]).union(kept), 
                           self.indicator_baseline, self.indicator_squared) \
                               .with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
         self.data = self.data.with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-        
-        #self.data = _prepare_data(self, self.data)
-        #self.DT = _prepare_data(self, self.DT)
         
         if self.method != "ITT":
             _dynamic(self)
@@ -130,6 +131,9 @@ class SEQuential:
     
     @bootstrap_loop      
     def fit(self):
+        if self.bootstrap_nboot > 0 and not hasattr(self, "_boot_samples"):
+            raise ValueError("Bootstrap sampling not found. Please run the 'bootstrap' method before fitting with bootstrapping.")
+        
         start = time.perf_counter()
         if self.weighted:
             WDT = _weight_setup(self)
@@ -148,8 +152,8 @@ class SEQuential:
             WDT = pl.from_pandas(WDT)
             WDT = _weight_predict(self, WDT)
             _weight_bind(self, WDT)
-            
             self.weight_stats = _weight_stats(self)
+            self.DT.write_csv("test.csv")
         
         end = time.perf_counter()
         self.model_time = _format_time(start, end)
@@ -161,6 +165,9 @@ class SEQuential:
                             "weight")
         
     def survival(self):
+        if not hasattr(self, "outcome_model") or not self.outcome_model:
+            raise ValueError("Outcome model not found. Please run the 'fit' method before calculating survival.")
+        
         start = time.perf_counter()
         
         risk_data = _calculate_risk(self)
@@ -171,8 +178,9 @@ class SEQuential:
         self.survival_time = _format_time(start, end)
   
     def hazard(self):
-        pass
-        
+        if not hasattr(self, "outcome_model") or not self.outcome_model:
+            raise ValueError("Outcome model not found. Please run the 'fit' method before calculating hazard ratio.")
+
     def plot(self):
         self.km_graph = _survival_plot(self)
         print(self.km_graph)

@@ -1,0 +1,28 @@
+def _param_checker(self):
+    if self.subgroup_colname is not None and self.subgroup_colname not in self.fixed_cols:
+        raise ValueError("subgroup_colname must be included in fixed_cols.")
+    
+    if self.survival_max is None:
+        self.survival_max = self.data.select(self.time_col).to_series().max()
+    if self.followup_max is None:
+        self.followup_max = self.data.select(self.time_col).to_series().max()   
+    
+    if self.excused_colnames is None and self.excused:
+        self.excused = False
+        raise Warning("Excused column names not provided but excused is set to True. Automatically set excused to False")
+    
+    if self.excused_colnames is not None and not self.excused:
+        self.excused = True
+        raise Warning("Excused column names provided but excused is set to False. Automatically set excused to True")
+    
+    if self.km_curves and self.hazard:
+        raise ValueError("km_curves and hazard cannot both be set to True.")
+    
+    if sum([self.followup_class, self.followup_include, self.followup_spline]) > 1:
+        raise ValueError("Only one of followup_class or followup_include can be set to True.")
+    
+    if self.weighted and self.method == "ITT" and self.cense_colname is None:
+        raise ValueError("For weighted ITT analyses, cense_colname must be provided.")
+    
+    return
+    

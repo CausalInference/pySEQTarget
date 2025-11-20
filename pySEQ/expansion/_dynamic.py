@@ -6,12 +6,12 @@ def _dynamic(self):
     if self.method == "dose-response":
         DT = self.DT.with_columns(
             pl.col(self.treatment_col)
-            .cum_count()
+            .cum_sum()
             .over([self.id_col, "trial"])
             .alias("dose")
         ).with_columns([
             (pl.col("dose") ** 2)
-            .alias(f"dose{self.squared_indicator}")
+            .alias(f"dose{self.indicator_squared}")
         ])
         self.DT = DT
         

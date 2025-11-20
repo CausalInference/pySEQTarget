@@ -1,14 +1,13 @@
 import multiprocessing
 from dataclasses import dataclass, field
-from typing import List, Optional
-import math
+from typing import List, Optional, Literal
 
 @dataclass
 class SEQopts:
     bootstrap_nboot: int = 0
     bootstrap_sample: float = 0.8
     bootstrap_CI: float = 0.95
-    bootstrap_CI_method: str = "se"
+    bootstrap_CI_method: Literal["se", "percentile"] = "se"
     cense_colname : Optional[str] = None
     cense_denominator: Optional[str] = None
     cense_numerator: Optional[str] = None
@@ -36,7 +35,7 @@ class SEQopts:
     plot_labels: Optional[List[str]] = None
     plot_subtitle: str = None
     plot_title: str = None
-    plot_type: str = "risk"
+    plot_type: Literal["risk", "survival", "inc"] = "risk"
     seed: Optional[int] = None
     selection_first_trial: bool = False
     selection_probability: float = 0.8
@@ -88,9 +87,7 @@ class SEQopts:
         lists = [
             
         ]
-        # veryify some lists here
-        # merge param checker here into this class ? might be better
-        
+
         for i in ('covariates', 'numerator', 'denominator',
                   'cense_numerator', 'cense_denominator'):
             attr = getattr(self, i)

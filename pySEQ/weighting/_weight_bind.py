@@ -9,15 +9,15 @@ def _weight_bind(self, WDT):
         join = "left"
         on = [self.id_col, "trial", "followup"]
         
-        DT = self.DT.join(WDT,
-                          on=on,
-                          how=join)
+    WDT = self.DT.join(WDT,
+                       on=on,
+                       how=join)
 
     if self.weight_preexpansion and self.excused:
         trial = (pl.col("trial") == 0) & (pl.col("period") == 0)
         excused = pl.col("isExcused").fill_null(False).cum_sum().over([self.id_col, "trial"]) > 0
     else:
-        trial = (pl.col("trial") == pl.col("trial").min().over(self.id_col))
+        trial = (pl.col("trial") == pl.col("trial").min().over(self.id_col)) & (pl.col("followup") == 0)
         excused = pl.lit(False)
 
     override = (
@@ -28,7 +28,7 @@ def _weight_bind(self, WDT):
         pl.col("numerator").is_null()
     )
 
-    self.DT = DT.with_columns(
+    self.DT = WDT.with_columns(
         pl.when(override)
         .then(pl.lit(1.0))
         .otherwise(pl.col("numerator") / pl.col("denominator"))

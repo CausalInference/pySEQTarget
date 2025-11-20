@@ -10,7 +10,7 @@ def _outcome_fit(self,
     weight_col: str = "weight",
 ):
     if weighted:
-        df = self.DT.with_columns(
+        df = df.with_columns(
             pl.col(weight_col).clip(
                 lower_bound=self.weight_min, 
                 upper_bound=self.weight_max
@@ -27,7 +27,7 @@ def _outcome_fit(self,
             formula=formula,
             data=df_pd,
             family=sm.families.Binomial(),
-            freq_weights=df_pd[weight_col])
+            var_weights=df_pd[weight_col])
     else:
         model = smf.glm(
             formula=formula,
