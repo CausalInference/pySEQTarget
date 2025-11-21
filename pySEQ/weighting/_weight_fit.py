@@ -33,7 +33,10 @@ def _fit_numerator(self, WDT):
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
         else:
             DT_subset = WDT
-        DT_subset = DT_subset[DT_subset[tx_bas] == i]
+            
+        if self.weight_lag_condition:
+            DT_subset = DT_subset[DT_subset[tx_bas] == i]
+            
         model = smf.mnlogit(
             formula,
             DT_subset
@@ -55,7 +58,8 @@ def _fit_denominator(self, WDT):
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
         else:
             DT_subset = WDT
-        DT_subset = DT_subset[DT_subset[tx_bas] == i]
+        if self.weight_lag_condition:
+            DT_subset = DT_subset[DT_subset[tx_bas] == i]
         
         if not self.weight_preexpansion:
             DT_subset = DT_subset[DT_subset['followup'] != 0]
