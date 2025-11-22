@@ -24,7 +24,7 @@ def _fit_numerator(self, WDT):
         return
     if self.method == "ITT":
         return
-    predictor = "switch" if self.excused and not self.weight_preexpansion else self.treatment_col
+    predictor = "switch" if self.excused else self.treatment_col
     formula = f"{predictor}~{self.numerator}"
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"
     fits = []
@@ -33,9 +33,10 @@ def _fit_numerator(self, WDT):
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
         else:
             DT_subset = WDT
-            
         if self.weight_lag_condition:
             DT_subset = DT_subset[DT_subset[tx_bas] == i]
+        if self.weight_eligible_colnames[i] is not None:
+            DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
             
         model = smf.mnlogit(
             formula,
@@ -51,7 +52,6 @@ def _fit_denominator(self, WDT):
         return
     predictor = "switch" if self.excused and not self.weight_preexpansion else self.treatment_col
     formula = f"{predictor}~{self.denominator}"
-    tx_bas = "tx_lag"
     fits = []
     for i in self.treatment_level:
         if self.excused and self.excused_colnames[i] is not None:
@@ -59,10 +59,11 @@ def _fit_denominator(self, WDT):
         else:
             DT_subset = WDT
         if self.weight_lag_condition:
-            DT_subset = DT_subset[DT_subset[tx_bas] == i]
-        
-        if not self.weight_preexpansion:
+            DT_subset = DT_subset[DT_subset["tx_lag"] == i]        
+        if not self.weight_preexpansion and not self.excused:
             DT_subset = DT_subset[DT_subset['followup'] != 0]
+        if self.weight_eligible_colnames[i] is not None:
+            DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
         
         model = smf.mnlogit(
             formula,

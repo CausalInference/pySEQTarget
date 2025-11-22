@@ -67,10 +67,10 @@ def test_PostE_dose_response_coefs():
     s.expand()
     s.fit()
     matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
-    assert matrix == [-6.378405714539087, 0.17837811837341735, 0.04468084245849907, 
-                      -0.0002872109540598882, -0.00016802503876320882, -1.646518424567451e-05, 
-                      0.037968809158708365, 0.0006587394643894709, 0.002530895897349477, 
-                      -0.039757502333589004, 0.16383943829099348]
+    assert matrix == [-6.265901713761531, 0.14065954021957594, 0.048626017624679704, 
+                      -0.0004688287307505834, -0.003975906839775267, 0.00016676441745740924, 
+                      0.03866279977096397, 0.0005928449623613982, 0.0030001459817949844, 
+                      -0.02106338184559446, 0.14867250693140854]
 
 def test_PreE_censoring_coefs():
     data = load_data("SEQdata")
@@ -91,9 +91,9 @@ def test_PreE_censoring_coefs():
     s.expand()
     s.fit()
     matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
-    assert matrix == [-4.661102616366661, 0.06322831388844205, 0.5000738277717721, 
-                      0.007974580521778882, 0.0005337038990034418, -0.011577561000157839, 
-                      0.0010459271332870575]
+    assert matrix == [-4.818288687908983, 0.06202831678835523, 0.5116656068909778, 
+                      0.025489681857267917, 0.00018215948440049318, -0.014019017637919164, 
+                      0.0011102389266667307]
 
 def test_PostE_censoring_coefs():
     data = load_data("SEQdata")
@@ -113,11 +113,11 @@ def test_PostE_censoring_coefs():
     s.expand()
     s.fit()
     matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
-    assert matrix == [-7.5529979759196735, 0.09676401101585402, 
-                      0.47314996909212975, 0.009424470533477088, 
-                      0.0005314170238427201, 0.041113888641022785, 
-                      0.0007102010905924148, 0.003667143725614389, 
-                      0.007220844654484469, 0.3009824885910414]
+    assert matrix == [-7.911317932628025, 0.08903087485404401, 0.4909219070145824, 
+                      0.026160806382874355, 0.0001907814850356967, 0.04445697224986894, 
+                      0.0007051968052006822, 0.00431623909529477, 0.013762799304812941, 
+                      0.3196331024454667]
+    return print(matrix)
 
 def test_PreE_censoring_excused_coefs():
     data = load_data("SEQdata")
@@ -140,8 +140,8 @@ def test_PreE_censoring_excused_coefs():
     s.expand()
     s.fit()
     matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
-    assert matrix == [-4.785472683278245, 0.36610312911034926, 0.029561364724039044, 
-                      -0.00020039125274747224, 0.021971717586055102, 0.0004172559228901589]
+    assert matrix == [-6.175691049418418, 1.3493634846413598, 0.1072284696749134, 
+                      -0.003977965364113033, 0.06959432825811135, -0.00034297574787048573]
 
 def test_PostE_censoring_excused_coefs():
     data = load_data("SEQdata")
@@ -158,15 +158,15 @@ def test_PostE_censoring_excused_coefs():
         method = "censoring",
         parameters=SEQopts(weighted=True,
                            excused=True,
-                           excused_colnames=["excusedZero", "excusedOne"])
+                           excused_colnames=["excusedZero", "excusedOne"],
+                           weight_max=1)
     )
     s.expand()
     s.fit()
-    print(s.weight_stats)
-    print(s.numerator_model[0].summary())
-    print(s.numerator_model[1].summary())
-    print(s.denominator_model[0].summary())
-    print(s.denominator_model[1].summary())
-    matrix = s.outcome_model[0].summary()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
+    # Doesn't converge on test data (have to input max weight)!
+    assert matrix == [-7.126398786875212, 0.13345454814736768, 0.2632047482928211, 
+                      0.03967181206032499, -0.0003308944679339907, 0.03763545026332593, 
+                      0.0007588725152627008, 0.0036793093608787847, -0.022372677571544725, 
+                      0.24418426175207003]
     return print(matrix)
-test_PostE_censoring_excused_coefs()

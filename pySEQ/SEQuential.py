@@ -10,7 +10,7 @@ from .SEQopts import SEQopts
 from .error import _param_checker
 from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
-from .expansion import _mapper, _binder, _dynamic, _randomSelection
+from .expansion import _mapper, _binder, _dynamic, _random_selection, _first_trial
 from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict, _weight_stats
 from .analysis import _outcome_fit, _calculate_risk, _calculate_survival
 from .plot import _survival_plot
@@ -72,44 +72,50 @@ class SEQuential:
                 *self.weight_eligible_colnames,
                 *self.excused_colnames]
         
-        if not self.selection_first_trial:
-            self.data = self.data.with_columns([
-                pl.when(pl.col(self.treatment_col).is_in(self.treatment_level))
-                .then(self.eligible_col)
-                .otherwise(0)
-                .alias(self.eligible_col),
-                pl.col(self.treatment_col)
-                .shift(1)
-                .over([self.id_col])
-                .alias("tx_lag"),
-                pl.lit(False).alias("switch")
-            ]).with_columns([
-                pl.when(pl.col(self.time_col) == 0)
-                .then(pl.lit(False))
-                .otherwise(
-                    (pl.col("tx_lag").is_not_null()) &
-                    (pl.col("tx_lag") != pl.col(self.treatment_col))
-                ).cast(pl.Int8)
-                .alias("switch")
-            ])
-            
-            self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
-                            self.id_col, self.time_col, self.eligible_col, self.outcome_col,
-                            self.treatment_col,
-                            _col_string([self.covariates, 
-                                        self.numerator, self.denominator, 
-                                        self.cense_numerator, self.cense_denominator]).union(kept), 
-                            self.indicator_baseline, self.indicator_squared) \
-                                .with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-            self.data = self.data.with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-        else:
-            #only first trial selection here
-            pass
+        self.data = self.data.with_columns([
+            pl.when(pl.col(self.treatment_col).is_in(self.treatment_level))
+            .then(self.eligible_col)
+            .otherwise(0)
+            .alias(self.eligible_col),
+            pl.col(self.treatment_col)
+            .shift(1)
+            .over([self.id_col])
+            .alias("tx_lag"),
+            pl.lit(False).alias("switch")
+        ]).with_columns([
+            pl.when(pl.col(self.time_col) == 0)
+            .then(pl.lit(False))
+            .otherwise(
+                (pl.col("tx_lag").is_not_null()) &
+                (pl.col("tx_lag") != pl.col(self.treatment_col))
+            ).cast(pl.Int8)
+            .alias("switch")
+        ])
+        
+        self.DT = _binder(self,kept_cols= _col_string([self.covariates, 
+                                                        self.numerator, 
+                                                        self.denominator, 
+                                                        self.cense_numerator, 
+                                                        self.cense_denominator]).union(kept)) \
+                            .with_columns(
+                                pl.col(self.id_col)
+                                .cast(pl.Utf8)
+                                .alias(self.id_col)
+                                )
+                            
+        self.data = self.data.with_columns(
+            pl.col(self.id_col)
+            .cast(pl.Utf8)
+            .alias(self.id_col)
+            )
         
         if self.method != "ITT":
             _dynamic(self)
         if self.selection_random:
-            _randomSelection(self)
+            _random_selection(self)
+        if self.followup_class:
+            self.fixed_cols.append(["followup",
+                                    f"followup{self.indicator_squared}"])
             
         end = time.perf_counter()
         self.expansion_time = _format_time(start, end)

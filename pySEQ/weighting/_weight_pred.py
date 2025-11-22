@@ -20,36 +20,31 @@ def _weight_predict(self, WDT):
         
         for i, level in enumerate(self.treatment_level):
             mask = pl.col("tx_lag") == level
-            tx_lag_mask = (WDT["tx_lag"] == level).to_numpy()
+            lag_mask = (WDT["tx_lag"] == level).to_numpy()
             
             if self.denominator_model[i] is not None:
-                if not self.weight_preexpansion:
-                    pred_mask = tx_lag_mask & (WDT["followup"] != 0).to_numpy()
-                else:
-                    pred_mask = tx_lag_mask
-                
                 pred_denom = np.ones(WDT.height)
-                if pred_mask.sum() > 0:
-                    subset = WDT.filter(pl.Series(pred_mask))
+                if lag_mask.sum() > 0:
+                    subset = WDT.filter(pl.Series(lag_mask))
                     p = _predict_model(self, self.denominator_model[i], subset)
                     if p.ndim == 1:
                         p = p.reshape(-1, 1)
                     p = p[:, i]
                     switched_treatment = (subset[self.treatment_col] != subset["tx_lag"]).to_numpy()
-                    pred_denom[pred_mask] = np.where(switched_treatment, 1. - p, p)
+                    pred_denom[lag_mask] = np.where(switched_treatment, 1. - p, p)
             else:
                 pred_denom = np.ones(WDT.height)
             
             if hasattr(self, "numerator_model") and self.numerator_model[i] is not None:
                 pred_num = np.ones(WDT.height)
-                if tx_lag_mask.sum() > 0:
-                    subset = WDT.filter(pl.Series(tx_lag_mask))
+                if lag_mask.sum() > 0:
+                    subset = WDT.filter(pl.Series(lag_mask))
                     p = _predict_model(self, self.numerator_model[i], subset)
                     if p.ndim == 1:
                         p = p.reshape(-1, 1)
                     p = p[:, i]
                     switched_treatment = (subset[self.treatment_col] != subset["tx_lag"]).to_numpy()
-                    pred_num[tx_lag_mask] = np.where(switched_treatment, 1. - p, p)
+                    pred_num[lag_mask] = np.where(switched_treatment, 1. - p, p)
             else:
                 pred_num = np.ones(WDT.height)
             

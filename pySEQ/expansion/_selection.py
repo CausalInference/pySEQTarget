@@ -1,7 +1,5 @@
 import polars as pl
-import numpy as np
-
-def _randomSelection(self):
+def _random_selection(self):
     """
     Handles the case where random selection is applied for data from 
     the __mapper -> __binder -> optionally __dynamic pipeline
