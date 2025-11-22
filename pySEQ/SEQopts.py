@@ -26,7 +26,6 @@ class SEQopts:
     indicator_baseline: str = "_bas"
     indicator_squared: str = "_sq"
     km_curves: bool = False
-    multinomial: bool = False # - this can maybe be removed since statsmodels seems to be handling it?
     ncores: int = multiprocessing.cpu_count()
     numerator: Optional[str] = None
     parallel: bool = False

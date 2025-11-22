@@ -31,13 +31,13 @@ def _fit_numerator(self, WDT):
     formula = f"{predictor}~{self.numerator}"
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"
     fits = []
-    for i in self.treatment_level:
+    for i, level in enumerate(self.treatment_level):
         if self.excused and self.excused_colnames[i] is not None:
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
         else:
             DT_subset = WDT
         if self.weight_lag_condition:
-            DT_subset = DT_subset[DT_subset[tx_bas] == i]
+            DT_subset = DT_subset[DT_subset[tx_bas] == level]
         if self.weight_eligible_colnames[i] is not None:
             DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
             
@@ -56,13 +56,13 @@ def _fit_denominator(self, WDT):
     predictor = "switch" if self.excused and not self.weight_preexpansion else self.treatment_col
     formula = f"{predictor}~{self.denominator}"
     fits = []
-    for i in self.treatment_level:
+    for i, level in enumerate(self.treatment_level):
         if self.excused and self.excused_colnames[i] is not None:
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
         else:
             DT_subset = WDT
         if self.weight_lag_condition:
-            DT_subset = DT_subset[DT_subset["tx_lag"] == i]        
+            DT_subset = DT_subset[DT_subset["tx_lag"] == level]        
         if not self.weight_preexpansion and not self.excused:
             DT_subset = DT_subset[DT_subset['followup'] != 0]
         if self.weight_eligible_colnames[i] is not None:

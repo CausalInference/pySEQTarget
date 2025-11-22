@@ -1,3 +1,5 @@
+from ..helpers import _pad
+
 def _param_checker(self):
     if self.subgroup_colname is not None and self.subgroup_colname not in self.fixed_cols:
         raise ValueError("subgroup_colname must be included in fixed_cols.")
@@ -21,6 +23,10 @@ def _param_checker(self):
     
     if self.weighted and self.method == "ITT" and self.cense_colname is None:
         raise ValueError("For weighted ITT analyses, cense_colname must be provided.")
+    
+    if self.excused:
+        _, self.excused_colnames = _pad(self.treatment_level, self.excused_colnames)
+    _, self.weight_eligible_colnames = _pad(self.treatment_level, self.weight_eligible_colnames)
     
     return
     

@@ -17,6 +17,9 @@ def _outcome_fit(self,
                 )
             )
     df_pd = df.to_pandas()
+    df_pd[self.treatment_col] = df_pd[self.treatment_col].astype("category")
+    tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
+    df_pd[tx_bas] = df_pd[tx_bas].astype("category")
     for col in self.fixed_cols:
         if col in df_pd.columns:
             df_pd[col] = df_pd[col].astype("category")
