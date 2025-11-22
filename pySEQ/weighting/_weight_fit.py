@@ -6,6 +6,9 @@ def _fit_LTFU(self, WDT):
         return
     else:
         fits = []
+        if self.cense_eligible_colname is not None:
+            WDT = WDT[WDT[self.cense_eligible_colname] == 1]
+            
         for i in [self.cense_numerator, self.cense_denominator]:
             formula = f"{self.cense_colname}~{i}"
             model = smf.glm(

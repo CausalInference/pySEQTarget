@@ -10,7 +10,7 @@ from .SEQopts import SEQopts
 from .error import _param_checker
 from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
-from .expansion import _mapper, _binder, _dynamic, _random_selection, _first_trial
+from .expansion import _mapper, _binder, _dynamic, _random_selection
 from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict, _weight_stats
 from .analysis import _outcome_fit, _calculate_risk, _calculate_survival
 from .plot import _survival_plot
@@ -58,10 +58,10 @@ class SEQuential:
 
             if self.cense_colname is not None:
                 if self.cense_numerator is None:
-                    self.cense_numerator = _cense_numerator()
+                    self.cense_numerator = _cense_numerator(self)
 
                 if self.cense_denominator is None:
-                    self.cense_denominator = _cense_denominator()
+                    self.cense_denominator = _cense_denominator(self)
         
         _param_checker(self)
 

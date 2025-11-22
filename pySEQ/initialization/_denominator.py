@@ -1,4 +1,6 @@
 def _denominator(self) -> str:
+    if self.method == "ITT":
+        return
     trial = "+".join(["trial", f"trial{self.indicator_squared}"]) if self.trial_include else None
     followup = "+".join(["followup", f"followup{self.indicator_squared}"]) if self.followup_include else None
     time = "+".join([self.time_col, f"{self.time_col}{self.indicator_squared}"])

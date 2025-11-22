@@ -169,4 +169,52 @@ def test_PostE_censoring_excused_coefs():
                       0.03967181206032499, -0.0003308944679339907, 0.03763545026332593, 
                       0.0007588725152627008, 0.0036793093608787847, -0.022372677571544725, 
                       0.24418426175207003]
-    return print(matrix)
+    
+def test_PreE_LTFU_ITT():
+    data = load_data("SEQdata_LTFU")
+    
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method = "ITT",
+        parameters=SEQopts(weighted=True,
+                           weight_preexpansion=True,
+                           cense_colname="LTFU")
+    )
+    s.expand()
+    s.fit()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
+    assert matrix == [-21.640523091572796, -0.19006360662228572, 0.0685235184372898, 
+                      0.028750950193838918, -0.0005762057433736666, 0.28554312978583757, 
+                      -0.001373044229623057, 0.006589141394458155, -0.44898959259422394, 
+                      1.3875089788036237]
+
+def test_PostE_LTFU_ITT():
+    data = load_data("SEQdata_LTFU")
+    
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method = "ITT",
+        parameters=SEQopts(weighted=True,
+                           cense_colname="LTFU")
+    )
+    s.expand()
+    s.fit()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
+    matrix == [-21.640523091572796, -0.19006360662228572, 0.0685235184372898, 
+               0.028750950193838918, -0.0005762057433736666, 0.28554312978583757, 
+               -0.001373044229623057, 0.006589141394458155, -0.44898959259422394, 
+               1.3875089788036237]

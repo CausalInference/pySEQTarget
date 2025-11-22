@@ -2,8 +2,6 @@ def _param_checker(self):
     if self.subgroup_colname is not None and self.subgroup_colname not in self.fixed_cols:
         raise ValueError("subgroup_colname must be included in fixed_cols.")
     
-    if self.survival_max is None:
-        self.survival_max = self.data.select(self.time_col).to_series().max()
     if self.followup_max is None:
         self.followup_max = self.data.select(self.time_col).to_series().max()   
     

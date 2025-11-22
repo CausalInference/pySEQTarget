@@ -8,13 +8,13 @@ class SEQopts:
     bootstrap_sample: float = 0.8
     bootstrap_CI: float = 0.95
     bootstrap_CI_method: Literal["se", "percentile"] = "se"
-    cense_colname : Optional[str] = None #TODO
+    cense_colname : Optional[str] = None
     cense_denominator: Optional[str] = None
     cense_numerator: Optional[str] = None
-    cense_eligible_colname: Optional[str] = None #TODO
+    cense_eligible_colname: Optional[str] = None
     compevent_colname: Optional[str] = None #TODO
-    covariates: Optional[List[str]] = None # need to test
-    denominator: Optional[List[str]] = None #need to test
+    covariates: Optional[str] = None
+    denominator: Optional[str] = None
     excused: bool = False
     excused_colnames: List[str] = field(default_factory=lambda: [])
     followup_class: bool = False
@@ -28,7 +28,7 @@ class SEQopts:
     km_curves: bool = False
     multinomial: bool = False # - this can maybe be removed since statsmodels seems to be handling it?
     ncores: int = multiprocessing.cpu_count()
-    numerator: Optional[List[str]] = None # need to test
+    numerator: Optional[str] = None
     parallel: bool = False
     plot_colors: List[str] = field(default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"])
     plot_labels: List[str] = field(default_factory=lambda: [])
