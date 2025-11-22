@@ -4,54 +4,52 @@ from typing import List, Optional, Literal
 
 @dataclass
 class SEQopts:
-    bootstrap_nboot: int = 0
-    bootstrap_sample: float = 0.8
-    bootstrap_CI: float = 0.95
-    bootstrap_CI_method: Literal["se", "percentile"] = "se"
-    cense_colname : Optional[str] = None
-    cense_denominator: Optional[str] = None
-    cense_numerator: Optional[str] = None
-    cense_eligible_colname: Optional[str] = None
-    compevent_colname: Optional[str] = None
-    covariates: Optional[List[str]] = None
-    data_return: bool = False
-    denominator: Optional[List[str]] = None
-    excused: bool = False
-    excused_colnames: List[str] = field(default_factory=lambda: [])
-    followup_class: bool = False
-    followup_include: bool = True
-    followup_max: int = None
-    followup_min: int = 0
-    followup_spline: bool = False
+    bootstrap_nboot: int = 0 #x
+    bootstrap_sample: float = 0.8 #x
+    bootstrap_CI: float = 0.95 #x
+    bootstrap_CI_method: Literal["se", "percentile"] = "se" #x
+    cense_colname : Optional[str] = None #TODO
+    cense_denominator: Optional[str] = None #x
+    cense_numerator: Optional[str] = None #x
+    cense_eligible_colname: Optional[str] = None #TODO
+    compevent_colname: Optional[str] = None #TODO
+    covariates: Optional[List[str]] = None #x - need to test
+    denominator: Optional[List[str]] = None #x - need to test
+    excused: bool = False # x
+    excused_colnames: List[str] = field(default_factory=lambda: []) #x
+    followup_class: bool = False #TODO
+    followup_include: bool = True #x
+    followup_max: int = None #x
+    followup_min: int = 0 #x
+    followup_spline: bool = False #TODO
     hazard: bool = False
-    indicator_baseline: str = "_bas"
-    indicator_squared: str = "_sq"
-    km_curves: bool = False
-    multinomial: bool = False
-    ncores: int = multiprocessing.cpu_count()
-    numerator: Optional[List[str]] = None
-    parallel: bool = False
-    plot_colors: List[str] = field(default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"])
-    plot_labels: List[str] = field(default_factory=lambda: [])
-    plot_subtitle: str = None
-    plot_title: str = None
-    plot_type: Literal["risk", "survival", "inc"] = "risk"
-    seed: Optional[int] = None
-    selection_first_trial: bool = False
-    selection_probability: float = 0.8
-    selection_random: bool = False
-    subgroup_colname: str = None
-    survival_max: int = None
-    survival_min: int = 0
-    treatment_level: List[int] = field(default_factory=lambda: [0, 1])
-    trial_include: bool = True
-    weight_eligible_colnames: List[str] = field(default_factory=lambda: [])
-    weight_min: float = 0.0
-    weight_max: float = None
-    weight_lag_condition: bool = False
-    weight_p99: bool = False
-    weight_preexpansion: bool = False
-    weighted: bool = False
+    indicator_baseline: str = "_bas" #x
+    indicator_squared: str = "_sq" #x
+    km_curves: bool = False #x
+    multinomial: bool = False # - this can maybe be removed since statsmodels seems to be handling it?
+    ncores: int = multiprocessing.cpu_count() #x
+    numerator: Optional[List[str]] = None # x - need to test
+    parallel: bool = False # - maybe wrap this into ncores > 1
+    plot_colors: List[str] = field(default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"]) #x
+    plot_labels: List[str] = field(default_factory=lambda: []) #x
+    plot_title: str = None #x
+    plot_type: Literal["risk", "survival", "inc"] = "risk" #x
+    seed: Optional[int] = None #x
+    selection_first_trial: bool = False #TODO
+    selection_probability: float = 0.8 #x
+    selection_random: bool = False #x
+    subgroup_colname: str = None #TODO
+    survival_max: int = None #TODO
+    survival_min: int = 0#TODO
+    treatment_level: List[int] = field(default_factory=lambda: [0, 1]) #x
+    trial_include: bool = True #x
+    weight_eligible_colnames: List[str] = field(default_factory=lambda: []) #TODO
+    weight_min: float = 0.0 #x
+    weight_max: float = None #x
+    weight_lag_condition: bool = False #x
+    weight_p99: bool = False #x
+    weight_preexpansion: bool = False #x
+    weighted: bool = False #x
     
     def __post_init__(self):
         bools = [

@@ -72,35 +72,39 @@ class SEQuential:
                 *self.weight_eligible_colnames,
                 *self.excused_colnames]
         
-        self.data = self.data.with_columns([
-            pl.when(pl.col(self.treatment_col).is_in(self.treatment_level))
-            .then(self.eligible_col)
-            .otherwise(0)
-            .alias(self.eligible_col),
-            pl.col(self.treatment_col)
-            .shift(1)
-            .over([self.id_col])
-            .alias("tx_lag"),
-            pl.lit(False).alias("switch")
-        ]).with_columns([
-            pl.when(pl.col(self.time_col) == 0)
-            .then(pl.lit(False))
-            .otherwise(
-                (pl.col("tx_lag").is_not_null()) &
-                (pl.col("tx_lag") != pl.col(self.treatment_col))
-            ).cast(pl.Int8)
-            .alias("switch")
-        ])
-        
-        self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
-                          self.id_col, self.time_col, self.eligible_col, self.outcome_col,
-                          self.treatment_col,
-                          _col_string([self.covariates, 
-                                      self.numerator, self.denominator, 
-                                      self.cense_numerator, self.cense_denominator]).union(kept), 
-                          self.indicator_baseline, self.indicator_squared) \
-                              .with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-        self.data = self.data.with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
+        if not self.selection_first_trial:
+            self.data = self.data.with_columns([
+                pl.when(pl.col(self.treatment_col).is_in(self.treatment_level))
+                .then(self.eligible_col)
+                .otherwise(0)
+                .alias(self.eligible_col),
+                pl.col(self.treatment_col)
+                .shift(1)
+                .over([self.id_col])
+                .alias("tx_lag"),
+                pl.lit(False).alias("switch")
+            ]).with_columns([
+                pl.when(pl.col(self.time_col) == 0)
+                .then(pl.lit(False))
+                .otherwise(
+                    (pl.col("tx_lag").is_not_null()) &
+                    (pl.col("tx_lag") != pl.col(self.treatment_col))
+                ).cast(pl.Int8)
+                .alias("switch")
+            ])
+            
+            self.DT = _binder(_mapper(self.data, self.id_col, self.time_col), self.data,
+                            self.id_col, self.time_col, self.eligible_col, self.outcome_col,
+                            self.treatment_col,
+                            _col_string([self.covariates, 
+                                        self.numerator, self.denominator, 
+                                        self.cense_numerator, self.cense_denominator]).union(kept), 
+                            self.indicator_baseline, self.indicator_squared) \
+                                .with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
+            self.data = self.data.with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
+        else:
+            #only first trial selection here
+            pass
         
         if self.method != "ITT":
             _dynamic(self)
