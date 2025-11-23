@@ -1,4 +1,3 @@
-
 def _outcome(self) -> str:
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
     dose = "+".join(["dose", f"dose{self.indicator_squared}"])

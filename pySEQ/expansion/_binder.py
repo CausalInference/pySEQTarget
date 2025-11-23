@@ -36,7 +36,7 @@ def _binder(self, kept_cols):
                 pl.lit(0).alias("trial")
             ]).drop(self.time_col)
     else:
-        DT = _mapper(self.data, self.id_col, self.time_col)
+        DT = _mapper(self.data, self.id_col, self.time_col, self.followup_min, self.followup_max)
         DT = DT.join(
             self.data.select([self.id_col, self.time_col] + kept),
             left_on=[self.id_col, 'period'],

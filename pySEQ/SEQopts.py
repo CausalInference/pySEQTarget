@@ -51,7 +51,7 @@ class SEQopts:
     def __post_init__(self):
         bools = [
             'excused', 'followup_class', 'followup_include',
-            'followup_spline', 'hazard', 'km_curves', 'multinomial',
+            'followup_spline', 'hazard', 'km_curves',
             'parallel', 'selection_first_trial', 'selection_random',
             'trial_include', 'weight_lag_condition', 'weight_p99',
             'weight_preexpansion', 'weighted'

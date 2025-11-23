@@ -92,7 +92,7 @@ class SEQuential:
             .alias("switch")
         ])
         
-        self.DT = _binder(self,kept_cols= _col_string([self.covariates, 
+        self.DT = _binder(self, kept_cols= _col_string([self.covariates, 
                                                         self.numerator, 
                                                         self.denominator, 
                                                         self.cense_numerator, 
@@ -113,9 +113,6 @@ class SEQuential:
             _dynamic(self)
         if self.selection_random:
             _random_selection(self)
-        if self.followup_class:
-            self.fixed_cols.append(["followup",
-                                    f"followup{self.indicator_squared}"])
             
         end = time.perf_counter()
         self.expansion_time = _format_time(start, end)
