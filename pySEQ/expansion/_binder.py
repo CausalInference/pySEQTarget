@@ -39,9 +39,9 @@ def _binder(self, kept_cols):
         DT = _mapper(self.data, self.id_col, self.time_col, self.followup_min, self.followup_max)
         DT = DT.join(
             self.data.select([self.id_col, self.time_col] + kept),
-            left_on=[self.id_col, 'period'],
+            left_on=[self.id_col, "period"],
             right_on=[self.id_col, self.time_col],
-            how='left'
+            how="left"
         )  
     DT = DT.sort([self.id_col, "trial", "followup"]) \
         .with_columns([
@@ -52,16 +52,16 @@ def _binder(self, kept_cols):
     if squared:
         squares = []
         for sq in squared:
-            col = sq.replace(self.indicator_squared, '')
+            col = sq.replace(self.indicator_squared, "")
             squares.append((pl.col(col) ** 2).alias(f"{col}{self.indicator_squared}"))
         DT = DT.with_columns(squares)
         
-    baseline_cols = {bas.replace(self.indicator_baseline, '') for bas in baseline}
+    baseline_cols = {bas.replace(self.indicator_baseline, "") for bas in baseline}
     needed = {self.eligible_col, self.treatment_col}
     baseline_cols.update({c for c in needed})
     
     bas = [
-        pl.col(c).first().over([self.id_col, 'trial']).alias(f"{c}{self.indicator_baseline}")
+        pl.col(c).first().over([self.id_col, "trial"]).alias(f"{c}{self.indicator_baseline}")
         for c in baseline_cols
     ]
     

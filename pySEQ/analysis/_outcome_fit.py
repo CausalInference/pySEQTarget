@@ -33,14 +33,14 @@ def _outcome_fit(
     if self.followup_spline:
         spline = f"cr(followup, df=3)"
         
-        formula = re.sub(r'(\w+)\s*\*\s*followup\b', rf'\1*{spline}', formula)
-        formula = re.sub(r'\bfollowup\s*\*\s*(\w+)', rf'{spline}*\1', formula)
-        formula = re.sub(rf'\bfollowup{re.escape(self.indicator_squared)}\b', '', formula)
-        formula = re.sub(r'\bfollowup\b', '', formula)
+        formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{spline}", formula)
+        formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{spline}*\1", formula)
+        formula = re.sub(rf"\bfollowup{re.escape(self.indicator_squared)}\b", "", formula)
+        formula = re.sub(r"\bfollowup\b", "", formula)
         
-        formula = re.sub(r'\s+', ' ', formula)
-        formula = re.sub(r'\+\s*\+', '+', formula)
-        formula = re.sub(r'^\s*\+\s*|\s*\+\s*$', '', formula).strip()
+        formula = re.sub(r"\s+", " ", formula)
+        formula = re.sub(r"\+\s*\+", "+", formula)
+        formula = re.sub(r"^\s*\+\s*|\s*\+\s*$", "", formula).strip()
         
         if formula:
             formula = f"{formula} + I({spline}**2)"

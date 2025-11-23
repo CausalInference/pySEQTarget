@@ -20,7 +20,7 @@ def test_followup_class():
     )
     s.expand()
     s.fit()
-    matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
     assert matrix == [-6.6000834193414635, 0.36024705241286203, 0.04326409573404126, 
                       0.07627958175273072, 0.11375627612408938, 0.14496108664292745, 
                       0.1798424095611678, 0.09066206802273916, 0.015738693166264354, 
@@ -45,7 +45,7 @@ def test_followup_spline():
     )
     s.expand()
     s.fit()
-    matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
     assert matrix == [-6.264817962084417, 0.20125056343026881, 0.12568743032952776, 
                       0.03823426390103046, 0.0006607691746414019, 0.003343365539743267, 
                       -0.01319460158923785, 0.19601796921732118, -0.5186462478511427, 
@@ -68,7 +68,7 @@ def test_no_followup():
     )
     s.expand()
     s.fit()
-    matrix = s.outcome_model[0].summary2().tables[1]['Coef.'].to_list()
+    matrix = s.outcome_model[0].summary2().tables[1]["Coef."].to_list()
     assert matrix == [-6.062350570326165, 0.17748844870984498, 0.11209431124681817, 
                       0.03344595751001804, 0.0005457002039545119, 0.0032236473201563585, 
                       -0.014463448024337773, 0.20398559747503964]
