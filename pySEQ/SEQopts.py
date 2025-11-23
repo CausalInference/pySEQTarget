@@ -12,7 +12,7 @@ class SEQopts:
     cense_denominator: Optional[str] = None
     cense_numerator: Optional[str] = None
     cense_eligible_colname: Optional[str] = None
-    compevent_colname: Optional[str] = None #TODO
+    compevent_colname: Optional[str] = None
     covariates: Optional[str] = None
     denominator: Optional[str] = None
     excused: bool = False
@@ -32,7 +32,7 @@ class SEQopts:
     plot_colors: List[str] = field(default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"])
     plot_labels: List[str] = field(default_factory=lambda: [])
     plot_title: str = None
-    plot_type: Literal["risk", "survival", "incidence"] = "risk" # add inc (compevent)
+    plot_type: Literal["risk", "survival", "incidence"] = "risk"
     seed: Optional[int] = None
     selection_first_trial: bool = False
     selection_probability: float = 0.8
