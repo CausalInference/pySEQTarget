@@ -22,7 +22,7 @@ class SEQopts:
     followup_max: int = None
     followup_min: int = 0
     followup_spline: bool = False
-    hazard: bool = False # TODO
+    hazard_estimate: bool = False
     indicator_baseline: str = "_bas"
     indicator_squared: str = "_sq"
     km_curves: bool = False
@@ -51,7 +51,7 @@ class SEQopts:
     def __post_init__(self):
         bools = [
             "excused", "followup_class", "followup_include",
-            "followup_spline", "hazard", "km_curves",
+            "followup_spline", "hazard_estimate", "km_curves",
             "parallel", "selection_first_trial", "selection_random",
             "trial_include", "weight_lag_condition", "weight_p99",
             "weight_preexpansion", "weighted"

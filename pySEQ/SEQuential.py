@@ -12,7 +12,7 @@ from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
 from .expansion import _mapper, _binder, _dynamic, _random_selection
 from .weighting import _weight_setup, _fit_LTFU, _fit_numerator, _fit_denominator, _weight_bind, _weight_predict, _weight_stats
-from .analysis import _outcome_fit, _pred_risk, _calculate_survival, _subgroup_fit
+from .analysis import _outcome_fit, _pred_risk, _calculate_survival, _subgroup_fit, _calculate_hazard
 from .plot import _survival_plot
 
 
@@ -45,6 +45,8 @@ class SEQuential:
             
         for name, value in asdict(parameters).items():
             setattr(self, name, value)
+            
+        self._rng = np.random.RandomState(self.seed) if self.seed is not None else np.random
         
         if self.covariates is None:
             self.covariates = _outcome(self)
@@ -126,7 +128,6 @@ class SEQuential:
             else:
                 raise ValueError(f"Unknown argument: {key}")
         
-        self._rng = np.random.RandomState(self.seed) if self.seed is not None else np.random
         UIDs = self.DT.select(pl.col(self.id_col)).unique().to_series().to_list()
         NIDs = len(UIDs)
         
@@ -197,7 +198,11 @@ class SEQuential:
     def hazard(self):
         if not hasattr(self, "outcome_model") or not self.outcome_model:
             raise ValueError("Outcome model not found. Please run the 'fit' method before calculating hazard ratio.")
+        self.hazard_ratio = _calculate_hazard(self)
 
     def plot(self):
         self.km_graph = _survival_plot(self)
         print(self.km_graph)
+        
+    def collect(self):
+        pass

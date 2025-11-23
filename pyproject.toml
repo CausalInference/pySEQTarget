@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQ"
-version = "0.1.0"
+version = "0.9.0"
 description = "Sequentially Nested Target Trial Emulation"
-authors = [{name = "Your Name", email = "your.email@example.com"}]
+authors = [{name = "Ryan ODea", email = "ryan.odea@psi.ch"}]
 requires-python = ">=3.8"
 dependencies = [
     "numpy",
@@ -14,7 +14,8 @@ dependencies = [
     "tqdm",
     "statsmodels",
     "matplotlib",
-    "pyarrow"
+    "pyarrow",
+    "lifelines"
 ]
 
 [tools.setuptools.package-data]
