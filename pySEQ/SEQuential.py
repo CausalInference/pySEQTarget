@@ -168,12 +168,18 @@ class SEQuential:
         if self.subgroup_colname is not None:
             return _subgroup_fit(self)
         
-        return _outcome_fit(self,
-                            self.DT,
-                            self.outcome_col,
-                            self.covariates,
-                            self.weighted,
-                            "weight")
+        models = {'outcome': _outcome_fit(self, self.DT, 
+                                          self.outcome_col, 
+                                          self.covariates, 
+                                          self.weighted, 
+                                          "weight")}
+        if self.compevent_colname is not None:
+            models['compevent'] = _outcome_fit(self, self.DT, 
+                                               self.compevent_colname, 
+                                               self.covariates, 
+                                               self.weighted, 
+                                               "weight")
+        return models
         
     def survival(self):
         if not hasattr(self, "outcome_model") or not self.outcome_model:
