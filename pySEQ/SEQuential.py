@@ -1,5 +1,4 @@
 from typing import Optional, List, Literal
-import sys
 import time
 from dataclasses import asdict
 from collections import Counter
