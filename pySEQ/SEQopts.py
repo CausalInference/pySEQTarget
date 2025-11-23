@@ -50,11 +50,11 @@ class SEQopts:
     
     def __post_init__(self):
         bools = [
-            'excused', 'followup_class', 'followup_include',
-            'followup_spline', 'hazard', 'km_curves',
-            'parallel', 'selection_first_trial', 'selection_random',
-            'trial_include', 'weight_lag_condition', 'weight_p99',
-            'weight_preexpansion', 'weighted'
+            "excused", "followup_class", "followup_include",
+            "followup_spline", "hazard", "km_curves",
+            "parallel", "selection_first_trial", "selection_random",
+            "trial_include", "weight_lag_condition", "weight_p99",
+            "weight_preexpansion", "weighted"
         ]
         for i in bools:
             if not isinstance(getattr(self, i), bool):
@@ -73,18 +73,14 @@ class SEQopts:
         if not (0.0 <= self.selection_probability <= 1.0):
             raise ValueError("selection_probability must be between 0 and 1.")
         
-        if self.plot_type not in ['risk', 'survival']:
+        if self.plot_type not in ["risk", "survival"]:
             raise ValueError("plot_type must be either 'risk' or 'survival'.")
         
-        if self.bootstrap_CI_method not in ['se', 'percentile']:
+        if self.bootstrap_CI_method not in ["se", "percentile"]:
             raise ValueError("bootstrap_CI_method must be one of 'se' or 'percentile'")
-        
-        lists = [
-            
-        ]
 
-        for i in ('covariates', 'numerator', 'denominator',
-                  'cense_numerator', 'cense_denominator'):
+        for i in ("covariates", "numerator", "denominator",
+                  "cense_numerator", "cense_denominator"):
             attr = getattr(self, i)
             if attr is not None and not isinstance(attr, list):
                 setattr(self, i, "".join(attr.split()))

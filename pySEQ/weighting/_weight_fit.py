@@ -64,7 +64,7 @@ def _fit_denominator(self, WDT):
         if self.weight_lag_condition:
             DT_subset = DT_subset[DT_subset["tx_lag"] == level]        
         if not self.weight_preexpansion and not self.excused:
-            DT_subset = DT_subset[DT_subset['followup'] != 0]
+            DT_subset = DT_subset[DT_subset["followup"] != 0]
         if self.weight_eligible_colnames[i] is not None:
             DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
         

@@ -9,7 +9,7 @@ def _survival_plot(self):
     else: 
         plot_data = self.km_data.filter(pl.col("estimate") == "survival")
     
-    has_subgroups = (hasattr(self, 'subgroup_colname') and 
+    has_subgroups = (hasattr(self, "subgroup_colname") and 
                      self.subgroup_colname is not None and
                      self.subgroup_colname in plot_data.columns)
     
@@ -53,7 +53,7 @@ def _plot_subgroups(self, plot_data):
         
         ax.set_xlabel("Followup")
         ax.set_ylabel(self.plot_type.title())
-        ax.set_title(f"{self.subgroup_colname.title()}: {subgroup_label}", fontsize=10, style='italic')
+        ax.set_title(f"{self.subgroup_colname.title()}: {subgroup_label}", fontsize=10, style="italic")
         ax.legend()
         ax.grid()
     
@@ -91,12 +91,12 @@ def _plot_data(self, plot_data, ax):
             color=color
         )
         
-        if 'LCI' in subset.columns and 'UCI' in subset.columns:
+        if "LCI" in subset.columns and "UCI" in subset.columns:
             ax.fill_between(
                 subset["followup"],
                 subset["LCI"],
                 subset["UCI"],
                 color=line.get_color(),
                 alpha=0.2,
-                label='_nolegend_'
+                label="_nolegend_"
             )

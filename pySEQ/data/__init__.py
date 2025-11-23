@@ -12,4 +12,4 @@ def load_data(name: str = "SEQdata") -> pl.DataFrame:
             data_path = loc.joinpath("SEQdata_LTFU.csv")
         return pl.read_csv(data_path)
     else:
-        raise ValueError(f"Dataset '{name}' not available. Options: ['SEQdata']")
+        raise ValueError(f"Dataset '{name}' not available. Options: ['SEQdata', 'SEQdata_multitreatment', 'SEQdata_LTFU']")
