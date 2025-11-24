@@ -122,7 +122,7 @@ def test_PreE_censoring_excused_covariates():
         parameters=SEQopts(weighted=True,
                            weight_preexpansion=True,
                            excused=True,
-                           excused_colnames=["ExcusedZero", "ExcusedOne"])
+                           excused_colnames=["excusedZero", "excusedOne"])
     )
     assert s.covariates == "tx_init_bas+followup+followup_sq+trial+trial_sq"
     assert s.numerator is None
@@ -144,7 +144,7 @@ def test_PostE_censoring_excused_covariates():
         method = "censoring",
         parameters=SEQopts(weighted=True,
                            excused=True,
-                           excused_colnames=["ExcusedZero", "ExcusedOne"])
+                           excused_colnames=["excusedZero", "excusedOne"])
     )
     assert s.covariates == "tx_init_bas+followup+followup_sq+trial+trial_sq+sex+N_bas+L_bas+P_bas"
     assert s.numerator == "sex+N_bas+L_bas+P_bas+followup+followup_sq+trial+trial_sq"

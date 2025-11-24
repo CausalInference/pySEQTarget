@@ -8,7 +8,7 @@ import datetime
 
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
-from .error import _param_checker
+from .error import _param_checker, _datachecker
 from .helpers import _col_string, bootstrap_loop, _format_time
 from .initialization import _outcome, _numerator, _denominator, _cense_numerator, _cense_denominator
 from .expansion import _binder, _dynamic, _random_selection, _diagnostics
@@ -69,6 +69,7 @@ class SEQuential:
                     self.cense_denominator = _cense_denominator(self)
         
         _param_checker(self)
+        _datachecker(self)
 
     def expand(self):
         start = time.perf_counter()
