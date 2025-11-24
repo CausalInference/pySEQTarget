@@ -5,6 +5,7 @@ from statsmodels.base.wrapper import ResultsWrapper
 import polars as pl
 import matplotlib.figure
 
+
 @dataclass
 class SEQoutput:
     options: SEQopts = None
@@ -21,16 +22,13 @@ class SEQoutput:
     risk_difference: pl.DataFrame = None
     time: dict = None
     diagnostic_tables: dict = None
-    
+
     def plot(self):
         print(self.km_graph)
-        
-    def summary(self,
-                type = Optional[Literal[
-                    "numerator",
-                    "denominator",
-                    "outcome",
-                    "compevent"]]):
+
+    def summary(
+        self, type=Optional[Literal["numerator", "denominator", "outcome", "compevent"]]
+    ):
         match type:
             case "numerator":
                 models = self.numerator_models
@@ -40,20 +38,24 @@ class SEQoutput:
                 models = self.compevent_models
             case _:
                 models = self.outcome_models
-        
+
         return [model.summary() for model in models]
-    
-    def retrieve_data(self, 
-                      type = Optional[Literal[
-                          "km_data",
-                          "hazard",
-                          "risk_ratio",
-                          "risk_difference",
-                          "unique_outcomes",
-                          "nonunique_outcomes",
-                          "unique_switches",
-                          "nonunique_switches"
-                      ]]):
+
+    def retrieve_data(
+        self,
+        type=Optional[
+            Literal[
+                "km_data",
+                "hazard",
+                "risk_ratio",
+                "risk_difference",
+                "unique_outcomes",
+                "nonunique_outcomes",
+                "unique_switches",
+                "nonunique_switches",
+            ]
+        ],
+    ):
         match type:
             case "hazard":
                 data = self.hazard
@@ -80,5 +82,3 @@ class SEQoutput:
         if data is None:
             raise ValueError("Data {type} was not created in the SEQuential process")
         return data
-                
-        
