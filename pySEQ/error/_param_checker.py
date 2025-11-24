@@ -15,7 +15,7 @@ def _param_checker(self):
         self.excused = True
         raise Warning("Excused column names provided but excused is set to False. Automatically set excused to True")
     
-    if self.km_curves and self.hazard:
+    if self.km_curves and self.hazard_estimate:
         raise ValueError("km_curves and hazard cannot both be set to True.")
     
     if sum([self.followup_class, self.followup_include, self.followup_spline]) > 1:

@@ -12,7 +12,7 @@ class SEQopts:
     cense_denominator: Optional[str] = None
     cense_numerator: Optional[str] = None
     cense_eligible_colname: Optional[str] = None
-    compevent_colname: Optional[str] = None #TODO
+    compevent_colname: Optional[str] = None
     covariates: Optional[str] = None
     denominator: Optional[str] = None
     excused: bool = False
@@ -22,7 +22,7 @@ class SEQopts:
     followup_max: int = None
     followup_min: int = 0
     followup_spline: bool = False
-    hazard: bool = False # TODO
+    hazard_estimate: bool = False
     indicator_baseline: str = "_bas"
     indicator_squared: str = "_sq"
     km_curves: bool = False
@@ -32,7 +32,7 @@ class SEQopts:
     plot_colors: List[str] = field(default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"])
     plot_labels: List[str] = field(default_factory=lambda: [])
     plot_title: str = None
-    plot_type: Literal["risk", "survival", "inc"] = "risk" # add inc (compevent)
+    plot_type: Literal["risk", "survival", "incidence"] = "risk"
     seed: Optional[int] = None
     selection_first_trial: bool = False
     selection_probability: float = 0.8
@@ -51,7 +51,7 @@ class SEQopts:
     def __post_init__(self):
         bools = [
             "excused", "followup_class", "followup_include",
-            "followup_spline", "hazard", "km_curves",
+            "followup_spline", "hazard_estimate", "km_curves",
             "parallel", "selection_first_trial", "selection_random",
             "trial_include", "weight_lag_condition", "weight_p99",
             "weight_preexpansion", "weighted"
@@ -73,8 +73,8 @@ class SEQopts:
         if not (0.0 <= self.selection_probability <= 1.0):
             raise ValueError("selection_probability must be between 0 and 1.")
         
-        if self.plot_type not in ["risk", "survival"]:
-            raise ValueError("plot_type must be either 'risk' or 'survival'.")
+        if self.plot_type not in ["risk", "survival", "incidence"]:
+            raise ValueError("plot_type must be either 'risk', 'survival', or 'incidence'.")
         
         if self.bootstrap_CI_method not in ["se", "percentile"]:
             raise ValueError("bootstrap_CI_method must be one of 'se' or 'percentile'")

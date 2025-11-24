@@ -6,14 +6,12 @@ import numpy as np
 def _survival_plot(self):
     if self.plot_type == "risk":
         plot_data = self.km_data.filter(pl.col("estimate") == "risk")
-    else: 
+    elif self.plot_type == "survival": 
         plot_data = self.km_data.filter(pl.col("estimate") == "survival")
+    else:
+        plot_data = self.km_data.filter(pl.col("estimate") == "incidence")
     
-    has_subgroups = (hasattr(self, "subgroup_colname") and 
-                     self.subgroup_colname is not None and
-                     self.subgroup_colname in plot_data.columns)
-    
-    if not has_subgroups:
+    if self.subgroup_colname is None:
         _plot_single(self, plot_data)
     else:
         _plot_subgroups(self, plot_data)
