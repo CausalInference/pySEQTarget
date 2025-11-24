@@ -3,6 +3,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import polars as pl
 from tqdm import tqdm
 import copy
+import time
+from ._format_time import _format_time
 
 def _prepare_boot_data(self, data, boot_id):
     id_counts = self._boot_samples[boot_id]
@@ -26,6 +28,7 @@ def bootstrap_loop(method):
     def wrapper(self, *args, **kwargs):
         if not hasattr(self, "outcome_model"):
             self.outcome_model = []
+        start = time.perf_counter()
             
         results = []
         full = method(self, *args, **kwargs)
@@ -53,6 +56,10 @@ def bootstrap_loop(method):
                     results.append(boot_fit)
             
             self.DT = original_DT
+            
+            end = time.perf_counter()
+            self._model_time = _format_time(start, end)
+            
         self.outcome_model = results
         return results
     return wrapper

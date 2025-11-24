@@ -7,7 +7,7 @@ name = "pySEQ"
 version = "0.9.0"
 description = "Sequentially Nested Target Trial Emulation"
 authors = [{name = "Ryan ODea", email = "ryan.odea@psi.ch"}]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "polars",
@@ -17,6 +17,9 @@ dependencies = [
     "pyarrow",
     "lifelines"
 ]
+
+[tools.setuptools]
+packages = ["pySEQ", "pySEQ.data"]
 
 [tools.setuptools.package-data]
 SEQdata = ["data/*.csv"]

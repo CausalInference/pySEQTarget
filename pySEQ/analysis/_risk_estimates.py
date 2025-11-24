@@ -13,7 +13,7 @@ def _risk_estimates(self):
     rr_comparisons = []
     
     if self.bootstrap_nboot > 0:
-        alpha = 1 - self.bootstrap_ci
+        alpha = 1 - self.bootstrap_CI
         z = stats.norm.ppf(1 - alpha / 2)
     
     for tx_x in self.treatment_level:
@@ -41,12 +41,12 @@ def _risk_estimates(self):
             
             if self.bootstrap_nboot > 0:
                 se_x = risk.filter(pl.col('tx_init') == tx_x).select(
-                    group_cols + ['se']
-                ).rename({'se': 'se_x'})
+                    group_cols + ['SE']
+                ).rename({'SE': 'se_x'})
                 
                 se_y = risk.filter(pl.col('tx_init') == tx_y).select(
-                    group_cols + ['se']
-                ).rename({'se': 'se_y'})
+                    group_cols + ['SE']
+                ).rename({'SE': 'se_y'})
                 
                 if group_cols:
                     comp = comp.join(se_x, on=group_cols, how='left')
