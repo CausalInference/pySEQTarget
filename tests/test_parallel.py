@@ -15,7 +15,8 @@ def test_parallel_ITT():
         fixed_cols=["sex"],
         method = "ITT",
         parameters=SEQopts(parallel=True,
-                           bootstrap_nboot=2)
+                           bootstrap_nboot=2,
+                           ncores=1)
     )
     s.expand()
     s.bootstrap()
