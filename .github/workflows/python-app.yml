@@ -1,6 +1,6 @@
 # This workflow will install Python dependencies, run tests and lint with a single version of Python
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-name: Test pySEQ
+name: Test pySEQTarget
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
         pip install flake8 pytest pytest-cov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
-    - name: Install pySEQ package
+    - name: Install pySEQTarget package
       run: |
         pip install -e .
     
@@ -45,7 +45,7 @@ jobs:
     
     - name: Test with pytest
       run: |
-        pytest tests/ -v --cov=pySEQ --cov-report=term-missing
+        pytest tests/ -v --cov=pySEQTarget --cov-report=xml
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
