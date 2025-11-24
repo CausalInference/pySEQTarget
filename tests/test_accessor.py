@@ -1,10 +1,12 @@
-from pySEQ import SEQuential, SEQopts
-from pySEQ.data import load_data
 import pytest
+
+from pySEQTarget import SEQopts, SEQuential
+from pySEQTarget.data import load_data
+
 
 def test_ITT_collector():
     data = load_data("SEQdata")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -14,12 +16,12 @@ def test_ITT_collector():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts()
+        method="ITT",
+        parameters=SEQopts(),
     )
     s.expand()
     s.fit()
     collector = s.collect()
-    outcomes = collector.retrieve_data("unique_outcomes")
+    collector.retrieve_data("unique_outcomes")
     with pytest.raises(ValueError):
         collector.retrieve_data("km_data")

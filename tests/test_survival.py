@@ -1,9 +1,10 @@
-from pySEQ import SEQuential, SEQopts
-from pySEQ.data import load_data
+from pySEQTarget import SEQopts, SEQuential
+from pySEQTarget.data import load_data
+
 
 def test_regular_survival():
     data = load_data("SEQdata")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -13,17 +14,18 @@ def test_regular_survival():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True)
+        method="ITT",
+        parameters=SEQopts(km_curves=True),
     )
     s.expand()
     s.fit()
     s.survival()
     return
-    
+
+
 def test_bootstrapped_survival():
     data = load_data("SEQdata")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -33,19 +35,19 @@ def test_bootstrapped_survival():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           bootstrap_nboot=2)
+        method="ITT",
+        parameters=SEQopts(km_curves=True, bootstrap_nboot=2),
     )
     s.expand()
     s.bootstrap()
     s.fit()
     s.survival()
     return
+
 
 def test_subgroup_survival():
     data = load_data("SEQdata")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -55,18 +57,18 @@ def test_subgroup_survival():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           subgroup_colname="sex")
+        method="ITT",
+        parameters=SEQopts(km_curves=True, subgroup_colname="sex"),
     )
     s.expand()
     s.fit()
     s.survival()
     return
-    
+
+
 def test_subgroup_bootstrapped_survival():
     data = load_data("SEQdata")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -76,10 +78,8 @@ def test_subgroup_bootstrapped_survival():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           subgroup_colname="sex",
-                           bootstrap_nboot=2)
+        method="ITT",
+        parameters=SEQopts(km_curves=True, subgroup_colname="sex", bootstrap_nboot=2),
     )
     s.expand()
     s.bootstrap()
@@ -87,9 +87,10 @@ def test_subgroup_bootstrapped_survival():
     s.survival()
     return
 
+
 def test_compevent():
     data = load_data("SEQdata_LTFU")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -99,19 +100,20 @@ def test_compevent():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           compevent_colname="LTFU",
-                           plot_type = "incidence")
+        method="ITT",
+        parameters=SEQopts(
+            km_curves=True, compevent_colname="LTFU", plot_type="incidence"
+        ),
     )
     s.expand()
     s.fit()
     s.survival()
     return
-    
+
+
 def test_bootstrapped_compevent():
     data = load_data("SEQdata_LTFU")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -121,21 +123,24 @@ def test_bootstrapped_compevent():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           compevent_colname="LTFU",
-                           plot_type = "incidence",
-                           bootstrap_nboot=2)
+        method="ITT",
+        parameters=SEQopts(
+            km_curves=True,
+            compevent_colname="LTFU",
+            plot_type="incidence",
+            bootstrap_nboot=2,
+        ),
     )
     s.expand()
     s.bootstrap()
     s.fit()
     s.survival()
     return
-    
+
+
 def test_subgroup_compevent():
     data = load_data("SEQdata_LTFU")
-    
+
     s = SEQuential(
         data,
         id_col="ID",
@@ -145,11 +150,13 @@ def test_subgroup_compevent():
         outcome_col="outcome",
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex"],
-        method = "ITT",
-        parameters=SEQopts(km_curves=True,
-                           compevent_colname="LTFU",
-                           plot_type = "incidence",
-                           subgroup_colname = "sex")
+        method="ITT",
+        parameters=SEQopts(
+            km_curves=True,
+            compevent_colname="LTFU",
+            plot_type="incidence",
+            subgroup_colname="sex",
+        ),
     )
     s.expand()
     s.bootstrap()
