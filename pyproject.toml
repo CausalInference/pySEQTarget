@@ -53,7 +53,7 @@ Repository = "https://github.com/CausalInference/pySEQ"
 "Harvard University (ROR)" = "https://ror.org/03vek6s52"
 
 [tool.setuptools]
-packages = ["pySEQ", "pySEQ.data"]
+packages = ["pySEQTarget", "pySEQTarget.data"]
 
 [tool.setuptools.package-data]
 SEQdata = ["data/*.csv"]
