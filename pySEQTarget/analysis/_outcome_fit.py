@@ -1,7 +1,8 @@
+import re
+
+import polars as pl
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
-import polars as pl
-import re
 
 
 def _outcome_fit(
@@ -32,7 +33,7 @@ def _outcome_fit(
             df_pd[squared_col] = df_pd[squared_col].astype("category")
 
     if self.followup_spline:
-        spline = f"cr(followup, df=3)"
+        spline = "cr(followup, df=3)"
 
         formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{spline}", formula)
         formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{spline}*\1", formula)

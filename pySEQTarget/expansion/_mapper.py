@@ -1,5 +1,6 @@
-import polars as pl
 import math
+
+import polars as pl
 
 
 def _mapper(data, id_col, time_col, min_followup=-math.inf, max_followup=math.inf):

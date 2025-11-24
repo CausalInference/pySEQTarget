@@ -1,4 +1,4 @@
-# pySEQ - Sequentially Nested Target Trial Emulation
+# pySEQTarget - Sequentially Nested Target Trial Emulation
 
 Implementation of sequential trial emulation for the analysis of
 observational databases. The ‘SEQTaRget’ software accommodates
@@ -9,13 +9,13 @@ intention-to-treat and per-protocol effects, and can adjust for
 potential selection bias.
 
 ## Installation
-You can install the development version of pySEQ from github with:
+You can install the development version of pySEQTarget from github with:
 ```shell
-pip install git+https://github.com/CausalInference/pySEQ
+pip install git+https://github.com/CausalInference/pySEQTarget
 ```
 Or from pypi iwth 
 ```shell
-pip install pySEQ
+pip install pySEQTarget
 ```
 
 ## Setting up your Analysis
@@ -25,7 +25,7 @@ From the user side, this amounts to creating a dataclass, `SEQopts`, and then fe
 
 ```python
 import polars as pl
-from pySEQ import SEQuential, SEQopts
+from pySEQTarget import SEQuential, SEQopts
 
 data = pl.from_pandas(SEQdata)
 options = SEQopts(km_curves = True)

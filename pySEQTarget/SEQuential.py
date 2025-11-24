@@ -1,41 +1,25 @@
-from typing import Optional, List, Literal
-import time
-from dataclasses import asdict
-from collections import Counter
-import polars as pl
-import numpy as np
 import datetime
+import time
+from collections import Counter
+from dataclasses import asdict
+from typing import List, Literal, Optional
 
+import numpy as np
+import polars as pl
+
+from .analysis import (_calculate_hazard, _calculate_survival, _outcome_fit,
+                       _pred_risk, _risk_estimates, _subgroup_fit)
+from .error import _datachecker, _param_checker
+from .expansion import _binder, _diagnostics, _dynamic, _random_selection
+from .helpers import _col_string, _format_time, bootstrap_loop
+from .initialization import (_cense_denominator, _cense_numerator,
+                             _denominator, _numerator, _outcome)
+from .plot import _survival_plot
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
-from .error import _param_checker, _datachecker
-from .helpers import _col_string, bootstrap_loop, _format_time
-from .initialization import (
-    _outcome,
-    _numerator,
-    _denominator,
-    _cense_numerator,
-    _cense_denominator,
-)
-from .expansion import _binder, _dynamic, _random_selection, _diagnostics
-from .weighting import (
-    _weight_setup,
-    _fit_LTFU,
-    _fit_numerator,
-    _fit_denominator,
-    _weight_bind,
-    _weight_predict,
-    _weight_stats,
-)
-from .analysis import (
-    _outcome_fit,
-    _pred_risk,
-    _calculate_survival,
-    _subgroup_fit,
-    _calculate_hazard,
-    _risk_estimates,
-)
-from .plot import _survival_plot
+from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
+                        _weight_bind, _weight_predict, _weight_setup,
+                        _weight_stats)
 
 
 class SEQuential:

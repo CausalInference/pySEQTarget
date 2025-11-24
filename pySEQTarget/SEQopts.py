@@ -1,6 +1,6 @@
 import multiprocessing
 from dataclasses import dataclass, field
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
 
 
 @dataclass

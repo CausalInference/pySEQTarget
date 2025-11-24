@@ -1,4 +1,5 @@
 import polars as pl
+
 from ._outcome_fit import _outcome_fit
 
 

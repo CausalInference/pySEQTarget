@@ -1,6 +1,7 @@
-from pySEQTarget import SEQuential, SEQopts
-from pySEQTarget.data import load_data
 import pytest
+
+from pySEQTarget import SEQopts, SEQuential
+from pySEQTarget.data import load_data
 
 
 def test_ITT_collector():
@@ -21,6 +22,6 @@ def test_ITT_collector():
     s.expand()
     s.fit()
     collector = s.collect()
-    outcomes = collector.retrieve_data("unique_outcomes")
+    collector.retrieve_data("unique_outcomes")
     with pytest.raises(ValueError):
         collector.retrieve_data("km_data")

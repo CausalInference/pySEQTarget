@@ -1,7 +1,8 @@
-import polars as pl
-import numpy as np
-from lifelines import CoxPHFitter
 import warnings
+
+import numpy as np
+import polars as pl
+from lifelines import CoxPHFitter
 
 
 def _calculate_hazard(self):

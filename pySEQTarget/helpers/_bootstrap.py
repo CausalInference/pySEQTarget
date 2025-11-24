@@ -1,10 +1,12 @@
-from functools import wraps
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import polars as pl
-import numpy as np
-from tqdm import tqdm
 import copy
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import wraps
+
+import numpy as np
+import polars as pl
+from tqdm import tqdm
+
 from ._format_time import _format_time
 
 

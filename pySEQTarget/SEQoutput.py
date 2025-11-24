@@ -1,9 +1,11 @@
 from dataclasses import dataclass
-from typing import List, Optional, Literal
-from .SEQopts import SEQopts
-from statsmodels.base.wrapper import ResultsWrapper
-import polars as pl
+from typing import List, Literal, Optional
+
 import matplotlib.figure
+import polars as pl
+from statsmodels.base.wrapper import ResultsWrapper
+
+from .SEQopts import SEQopts
 
 
 @dataclass

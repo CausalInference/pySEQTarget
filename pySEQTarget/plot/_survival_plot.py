@@ -1,7 +1,8 @@
 import itertools
+
 import matplotlib.pyplot as plt
-import polars as pl
 import numpy as np
+import polars as pl
 
 
 def _survival_plot(self):

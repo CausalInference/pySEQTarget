@@ -1,6 +1,7 @@
-from ..helpers import _predict_model
-import polars as pl
 import numpy as np
+import polars as pl
+
+from ..helpers import _predict_model
 
 
 def _weight_predict(self, WDT):

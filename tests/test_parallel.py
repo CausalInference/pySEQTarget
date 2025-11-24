@@ -1,7 +1,9 @@
-from pySEQTarget import SEQuential, SEQopts
-from pySEQTarget.data import load_data
 import os
+
 import pytest
+
+from pySEQTarget import SEQopts, SEQuential
+from pySEQTarget.data import load_data
 
 
 @pytest.mark.skipif(

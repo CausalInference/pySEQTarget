@@ -1,4 +1,4 @@
-from pySEQTarget import SEQuential, SEQopts
+from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
 
