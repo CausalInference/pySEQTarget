@@ -44,6 +44,7 @@ model.bootstrap(bootstrap_nboot = 20) # Run 20 bootstrap samples
 model.fit() # Fit the model
 model.survival() # Create survival curves
 model.plot() # Create and show a plot of the survival curves
+model.collect() # Collection of important information
 
 ```
 
