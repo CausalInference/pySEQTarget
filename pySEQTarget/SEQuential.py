@@ -7,25 +7,42 @@ from typing import List, Literal, Optional
 import numpy as np
 import polars as pl
 
-from .analysis import (_calculate_hazard, _calculate_survival, _outcome_fit,
-                       _pred_risk, _risk_estimates, _subgroup_fit)
+from .analysis import (
+    _calculate_hazard,
+    _calculate_survival,
+    _outcome_fit,
+    _pred_risk,
+    _risk_estimates,
+    _subgroup_fit,
+)
 from .error import _datachecker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import _col_string, _format_time, bootstrap_loop
-from .initialization import (_cense_denominator, _cense_numerator,
-                             _denominator, _numerator, _outcome)
+from .initialization import (
+    _cense_denominator,
+    _cense_numerator,
+    _denominator,
+    _numerator,
+    _outcome,
+)
 from .plot import _survival_plot
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
-from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
-                        _weight_bind, _weight_predict, _weight_setup,
-                        _weight_stats)
+from .weighting import (
+    _fit_denominator,
+    _fit_LTFU,
+    _fit_numerator,
+    _weight_bind,
+    _weight_predict,
+    _weight_setup,
+    _weight_stats,
+)
 
 
 class SEQuential:
     """
     Primary class initializer for SEQuentially nested target trial emulation
-    
+
     :param data: Data for analysis
     :type data: pl.DataFrame
     :param id_col: Column name for unique patient IDs
@@ -36,7 +53,7 @@ class SEQuential:
     :type eligible_col: str
     :param treatment_col: Column name specifying treatment per time_col
     :type treatment_col: str
-    :param outcome_col: Column name specifying outcome per time_col 
+    :param outcome_col: Column name specifying outcome per time_col
     :type outcome_col: str
     :param time_varying_cols: Time-varying column names as covariates (BMI, Age, etc.)
     :type time_varying_cols: Optional[List[str]] or None
@@ -47,6 +64,7 @@ class SEQuential:
     :param parameters: Parameters to augment analysis, specified with ``pySEQTarget.SEQopts``
     :type parameters: Optional[SEQopts] or None
     """
+
     def __init__(
         self,
         data: pl.DataFrame,
@@ -102,7 +120,10 @@ class SEQuential:
         _param_checker(self)
         _datachecker(self)
 
-    def expand(self):
+    def expand(self) -> None:
+        """
+        Creates the sequentially nested, emulated target trial structure
+        """
         start = time.perf_counter()
         kept = [
             self.cense_colname,
@@ -160,7 +181,10 @@ class SEQuential:
         end = time.perf_counter()
         self._expansion_time = _format_time(start, end)
 
-    def bootstrap(self, **kwargs):
+    def bootstrap(self, **kwargs) -> None:
+        """
+        Internally sets up bootstrapping - creating a list of IDs to use per iteration
+        """
         allowed = {
             "bootstrap_nboot",
             "bootstrap_sample",
@@ -172,7 +196,6 @@ class SEQuential:
                 setattr(self, key, value)
             else:
                 raise ValueError(f"Unknown argument: {key}")
-
         UIDs = self.DT.select(pl.col(self.id_col)).unique().to_series().to_list()
         NIDs = len(UIDs)
 
@@ -186,7 +209,10 @@ class SEQuential:
         return self
 
     @bootstrap_loop
-    def fit(self):
+    def fit(self) -> None:
+        """
+        Fits weight models (numerator, denominator, censoring) and outcome models (outcome, competing event)
+        """
         if self.bootstrap_nboot > 0 and not hasattr(self, "_boot_samples"):
             raise ValueError(
                 "Bootstrap sampling not found. Please run the 'bootstrap' method before fitting with bootstrapping."
@@ -235,7 +261,17 @@ class SEQuential:
             )
         return models
 
-    def survival(self):
+    def survival(self, **kwargs) -> None:
+        """
+        Uses fit outcome models (outcome, competing event) to estimate risk, survival, and incidence curves
+        """
+        allowed = {"bootstrap_CI", "bootstrap_CI_method"}
+        for key, val in kwargs.items():
+            if key in allowed:
+                setattr(self, key, val)
+            else:
+                raise ValueError(f"Unknown or misplaced arugment: {key}")
+
         if not hasattr(self, "outcome_model") or not self.outcome_model:
             raise ValueError(
                 "Outcome model not found. Please run the 'fit' method before calculating survival."
@@ -251,7 +287,10 @@ class SEQuential:
         end = time.perf_counter()
         self._survival_time = _format_time(start, end)
 
-    def hazard(self):
+    def hazard(self) -> None:
+        """
+        Uses fit outcome models (outcome, competing event) to estimate hazard ratios
+        """
         start = time.perf_counter()
 
         if not hasattr(self, "outcome_model") or not self.outcome_model:
@@ -263,10 +302,22 @@ class SEQuential:
         end = time.perf_counter()
         self._hazard_time = _format_time(start, end)
 
-    def plot(self):
+    def plot(self, **kwargs) -> None:
+        """
+        Shows a plot specific to plot_type
+        """
+        allowed = {"plot_type", "plot_colors", "plot_title", "plot_labels"}
+        for key, val in kwargs.items():
+            if key in allowed:
+                setattr(self, key, val)
+            else:
+                raise ValueError(f"Unknown or misplaced arugment: {key}")
         self.km_graph = _survival_plot(self)
 
-    def collect(self):
+    def collect(self) -> SEQoutput:
+        """
+        Collects all results current created into ``SEQoutput`` class
+        """
         self._time_collected = datetime.datetime.now()
 
         generated = [

@@ -10,6 +10,37 @@ from .SEQopts import SEQopts
 
 @dataclass
 class SEQoutput:
+    """
+    Collector class for results from ``SEQuential``
+
+    :param options: Options used in the SEQuential process
+    :type options: SEQopts or None
+    :param method: Method of analysis ['ITT', 'dose-response', or 'censoring']
+    :type method: str
+    :param numerator_models: Numerator models, if applicable, from the weighting process
+    :type numerator_models: List[ResultsWrapper] or None
+    :param denominator_models: Denominator models, if applicable, from the weighting process
+    :type denominator_models: List[ResultsWrapper] or None
+    :param compevent_models: Competing event models, if applicable
+    :type compevent_models: List[ResultsWrapper] or None
+    :param weight_statistics: Weight statistics once returned back to the expanded dataset
+    :type weight_statistics: dict or None
+    :param hazard: Hazard ratio if applicable
+    :type hazard: pl.DataFrame or None
+    :param km_data: Dataframe of risk, survival, and incidence data if applicable at all followups
+    :type km_data: pl.DataFrame or None
+    :param km_graph: Figure of survival, risk, or incidence over followup times
+    :type km_graph: matplotlib.figure.Figure or None
+    :param risk_ratio: Dataframe of risk ratios, compared between treatments and subgroups
+    :type risk_ratio: pl.DataFrame or None
+    :param risk_difference: Dataframe of risk differences, compared between treatments and subgroups
+    :type risk_difference: pl.DataFrame or None
+    :param time: Timings for every step of the process completed thus far
+    :type time: dict or None
+    :param diagnostic_tables: Diagnostic tables for unique and nonunique outcome events and treatment switches
+    :type diagnostic_tables: dict or None
+    """
+
     options: SEQopts = None
     method: str = None
     numerator_models: List[ResultsWrapper] = None
@@ -25,12 +56,20 @@ class SEQoutput:
     time: dict = None
     diagnostic_tables: dict = None
 
-    def plot(self):
+    def plot(self) -> None:
+        """
+        Prints the kaplan-meier graph
+        """
         print(self.km_graph)
 
     def summary(
         self, type=Optional[Literal["numerator", "denominator", "outcome", "compevent"]]
-    ):
+    ) -> List:
+        """
+        Returns a list of model summaries of either the numerator, denominator, outcome, or competing event models
+        :param type: Indicator for which model list you would like returned
+        :type type: str
+        """
         match type:
             case "numerator":
                 models = self.numerator_models
@@ -57,7 +96,12 @@ class SEQoutput:
                 "nonunique_switches",
             ]
         ],
-    ):
+    ) -> pl.DataFrame:
+        """
+        Getter for data stored within ``SEQoutput``
+        :param type: Data which you would like to access, ['km_data', 'hazard', 'risk_ratio', 'risk_difference', 'unique_outcomes', 'nonunique_outcomes', 'unique_switches', 'nonunique_switches']
+        :type type: str
+        """
         match type:
             case "hazard":
                 data = self.hazard

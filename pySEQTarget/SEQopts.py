@@ -7,7 +7,7 @@ from typing import List, Literal, Optional
 class SEQopts:
     """
     Parameter builder for ``pySEQTarget.SEQuential`` analysis
-    
+
     :param bootstrap_nboot: Number of bootstraps to preform
     :type bootstrap_nboot: int
     :param bootstrap_sample: Subsampling proportion of ID-Trials gathered for each bootstrapping iteration
@@ -95,6 +95,7 @@ class SEQopts:
     :param weighted: Boolean to weight analysis
     :type weighted: bool
     """
+
     bootstrap_nboot: int = 0
     bootstrap_sample: float = 0.8
     bootstrap_CI: float = 0.95
