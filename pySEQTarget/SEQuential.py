@@ -7,19 +7,36 @@ from typing import List, Literal, Optional
 import numpy as np
 import polars as pl
 
-from .analysis import (_calculate_hazard, _calculate_survival, _outcome_fit,
-                       _pred_risk, _risk_estimates, _subgroup_fit)
+from .analysis import (
+    _calculate_hazard,
+    _calculate_survival,
+    _outcome_fit,
+    _pred_risk,
+    _risk_estimates,
+    _subgroup_fit,
+)
 from .error import _datachecker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import _col_string, _format_time, bootstrap_loop
-from .initialization import (_cense_denominator, _cense_numerator,
-                             _denominator, _numerator, _outcome)
+from .initialization import (
+    _cense_denominator,
+    _cense_numerator,
+    _denominator,
+    _numerator,
+    _outcome,
+)
 from .plot import _survival_plot
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
-from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
-                        _weight_bind, _weight_predict, _weight_setup,
-                        _weight_stats)
+from .weighting import (
+    _fit_denominator,
+    _fit_LTFU,
+    _fit_numerator,
+    _weight_bind,
+    _weight_predict,
+    _weight_setup,
+    _weight_stats,
+)
 
 
 class SEQuential:
