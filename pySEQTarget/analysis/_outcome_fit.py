@@ -20,6 +20,9 @@ def _outcome_fit(
             )
         )
 
+    if self.method == "censoring":
+        df = df.filter(pl.col("switch") != 1)
+
     df_pd = df.to_pandas()
 
     df_pd[self.treatment_col] = df_pd[self.treatment_col].astype("category")
