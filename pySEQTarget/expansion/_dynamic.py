@@ -25,37 +25,49 @@ def _dynamic(self):
         switch = (
             pl.when(pl.col("followup") == 0)
             .then(pl.lit(False))
-            .otherwise(
-                (pl.col("tx_lag").is_not_null())
-                & (pl.col("tx_lag") != pl.col(self.treatment_col))
-            )
+            .otherwise(pl.col("tx_lag") != pl.col(self.treatment_col))
         )
         is_excused = pl.lit(False)
         if self.excused:
             conditions = []
-            for i in range(len(self.treatment_level)):
+            for i, val in enumerate(self.treatment_level):
                 colname = self.excused_colnames[i]
                 if colname is not None:
                     conditions.append(
-                        (pl.col(colname) == 1)
-                        & (pl.col(self.treatment_col) == self.treatment_level[i])
+                        (pl.col(colname) == 1) & (pl.col(self.treatment_col) == val)
                     )
 
             if conditions:
                 excused = pl.any_horizontal(conditions)
                 is_excused = switch & excused
-                switch = pl.when(excused).then(pl.lit(False)).otherwise(switch)
 
-        DT = (
-            DT.with_columns([switch.alias("switch"), is_excused.alias("isExcused")])
-            .sort([self.id_col, "trial", "followup"])
-            .filter(
-                (pl.col("switch").cum_max().shift(1, fill_value=False)).over(
-                    [self.id_col, "trial"]
+        DT = DT.with_columns(
+            [switch.alias("switch"), is_excused.alias("isExcused")]
+        ).sort([self.id_col, "trial", "followup"])
+
+        if self.excused:
+            DT = (
+                DT.with_columns(
+                    pl.col("isExcused")
+                    .cast(pl.Int8)
+                    .cum_sum()
+                    .over([self.id_col, "trial"])
+                    .alias("_excused_tmp")
                 )
-                == 0
+                .with_columns(
+                    pl.when(pl.col("_excused_tmp") > 0)
+                    .then(pl.lit(False))
+                    .otherwise(pl.col("switch"))
+                    .alias("switch")
+                )
+                .drop("_excused_tmp")
             )
-            .with_columns(pl.col("switch").cast(pl.Int8).alias("switch"))
-        )
+
+        DT = DT.filter(
+            (pl.col("switch").cum_max().shift(1, fill_value=False)).over(
+                [self.id_col, "trial"]
+            )
+            == 0
+        ).with_columns(pl.col("switch").cast(pl.Int8).alias("switch"))
 
         self.DT = DT.drop(["tx_lag"])

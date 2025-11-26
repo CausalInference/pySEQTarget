@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
@@ -189,14 +192,13 @@ def test_PreE_censoring_excused_coefs():
     s.fit()
     matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
     expected = [
-        -6.460912082691973,
-        1.309708035546933,
-        0.10853511682679658,
-        -0.0038913520688693823,
-        0.08849129909709463,
-        -0.000647578869153453,
+        -5.028261715903588,
+        0.09661040854758277,
+        -0.029861423750765226,
+        0.0014186936955145387,
+        0.08365564531281737,
+        -0.0006220464783614585,
     ]
-    print(matrix)
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
 
@@ -224,16 +226,16 @@ def test_PostE_censoring_excused_coefs():
     s.fit()
     matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
     expected = [
-        -6.782732929102242,
-        0.26371172100905477,
-        0.13625528598217598,
-        0.040580427030886,
-        -0.000343018323531494,
-        0.031185150775465315,
-        0.000784356550754563,
-        0.004338417236024277,
-        -0.013052187516528172,
-        0.20402680950820007,
+        -7.722441228318476,
+        0.25040421685828396,
+        0.08370244078073162,
+        0.03644249151697272,
+        -0.00019169394285363785,
+        0.053677366381589396,
+        0.0005643189202781975,
+        0.005250478928581509,
+        0.0014679503081325516,
+        0.3008769969502361,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
