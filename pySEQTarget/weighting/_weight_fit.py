@@ -40,7 +40,6 @@ def _fit_numerator(self, WDT):
             DT_subset = DT_subset[DT_subset[tx_bas] == level]
         if self.weight_eligible_colnames[i] is not None:
             DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
-        DT_subset.to_csv("fml.csv")
         model = smf.mnlogit(formula, DT_subset)
         model_fit = model.fit(disp=0)
         fits.append(model_fit)
