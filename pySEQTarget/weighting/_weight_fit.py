@@ -2,22 +2,45 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 
+def _fit_pair(
+    self, WDT, outcome_attr, formula_attr, output_attrs, eligible_colname_attr=None
+):
+    outcome = getattr(self, outcome_attr)
+
+    if eligible_colname_attr is not None:
+        _eligible_col = getattr(self, eligible_colname_attr)
+        if _eligible_col is not None:
+            WDT = WDT[WDT[_eligible_col] == 1]
+
+    for rhs, out in zip(formula_attr, output_attrs):
+        formula = f"{outcome}~{rhs}"
+        model = smf.glm(formula, WDT, family=sm.families.Binomial())
+        setattr(self, out, model.fit(disp=0))
+
+
 def _fit_LTFU(self, WDT):
     if self.cense_colname is None:
         return
-    else:
-        fits = []
-        if self.cense_eligible_colname is not None:
-            WDT = WDT[WDT[self.cense_eligible_colname] == 1]
+    _fit_pair(
+        self,
+        WDT,
+        "cense_colname",
+        [self.cense_numerator, self.cense_denominator],
+        ["cense_numerator", "cense_denominator"],
+        "cense_eligible_colname",
+    )
 
-        for i in [self.cense_numerator, self.cense_denominator]:
-            formula = f"{self.cense_colname}~{i}"
-            model = smf.glm(formula, WDT, family=sm.families.Binomial())
-            model_fit = model.fit(disp=0)
-            fits.append(model_fit)
 
-        self.cense_numerator = fits[0]
-        self.cense_denominator = fits[1]
+def _fit_visit(self, WDT):
+    if self.visit_colname is None:
+        return
+    _fit_pair(
+        self,
+        WDT,
+        "visit_colname",
+        [self.cense_numerator, self.cense_denominator],
+        ["visit_numerator", "visit_denominator"],
+    )
 
 
 def _fit_numerator(self, WDT):
