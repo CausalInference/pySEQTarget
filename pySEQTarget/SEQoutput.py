@@ -1,10 +1,13 @@
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Literal, Optional
 
 import matplotlib.figure
 import polars as pl
 from statsmodels.base.wrapper import ResultsWrapper
 
+from .helpers import _build_md, _build_pdf
 from .SEQopts import SEQopts
 
 
@@ -47,7 +50,7 @@ class SEQoutput:
     denominator_models: List[ResultsWrapper] = None
     outcome_models: List[List[ResultsWrapper]] = None
     compevent_models: List[List[ResultsWrapper]] = None
-    weight_statistics: dict = None
+    weight_statistics: pl.DataFrame = None
     hazard: pl.DataFrame = None
     km_data: pl.DataFrame = None
     km_graph: matplotlib.figure.Figure = None
@@ -128,3 +131,33 @@ class SEQoutput:
         if data is None:
             raise ValueError("Data {type} was not created in the SEQuential process")
         return data
+
+    def to_md(self, filename="SEQuential_results.md") -> None:
+        """Generates a markdown report of the SEQuential analysis results."""
+
+        img_path = None
+        if self.options.km_curves and self.km_graph is not None:
+            img_path = Path(filename).with_suffix(".png")
+            self.km_graph.savefig(img_path, dpi=300, bbox_inches="tight")
+            img_path = img_path.name
+
+        with open(filename, "w") as f:
+            f.write(_build_md(self, img_path))
+
+        print(f"Results saved to {filename}")
+
+    def to_pdf(self, filename="SEQuential_results.pdf") -> None:
+        """Generates a PDF report of the SEQuential analysis results."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_md = Path(tmpdir) / "report.md"
+            self.to_md(str(tmp_md))
+
+            with open(tmp_md, "r") as f:
+                md_content = f.read()
+
+            tmp_img = tmp_md.with_suffix(".png")
+            img_abs_path = str(tmp_img.absolute()) if tmp_img.exists() else None
+
+            _build_pdf(md_content, filename, img_abs_path)
+
+        print(f"Results saved to {filename}")

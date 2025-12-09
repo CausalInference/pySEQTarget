@@ -14,30 +14,32 @@ def _survival_plot(self):
         plot_data = self.km_data.filter(pl.col("estimate") == "incidence")
 
     if self.subgroup_colname is None:
-        _plot_single(self, plot_data)
+        fig = _plot_single(self, plot_data)
     else:
-        _plot_subgroups(self, plot_data)
+        fig = _plot_subgroups(self, plot_data)
+
+    return fig
 
 
 def _plot_single(self, plot_data):
-    plt.figure(figsize=(10, 6))
-    _plot_data(self, plot_data, plt.gca())
+    fig, ax = plt.subplots(figsize=(10, 6))
+    _plot_data(self, plot_data, ax)
 
     if self.plot_title is None:
         self.plot_title = f"Cumulative {self.plot_type.title()}"
 
-    plt.xlabel("Followup")
-    plt.ylabel(self.plot_type.title())
-    plt.title(self.plot_title)
-    plt.legend()
-    plt.grid()
-    plt.show()
+    ax.set_xlabel("Followup")
+    ax.set_ylabel(self.plot_type.title())
+    ax.set_title(self.plot_title)
+    ax.legend()
+    ax.grid()
+
+    return fig
 
 
 def _plot_subgroups(self, plot_data):
     subgroups = sorted(plot_data[self.subgroup_colname].unique().to_list())
     n_subgroups = len(subgroups)
-
     n_cols = min(3, n_subgroups)
     n_rows = (n_subgroups + n_cols - 1) // n_cols
 
@@ -48,11 +50,9 @@ def _plot_subgroups(self, plot_data):
         ax = axes[idx]
         subgroup_data = plot_data.filter(pl.col(self.subgroup_colname) == subgroup_val)
         _plot_data(self, subgroup_data, ax)
-
         subgroup_label = (
             str(subgroup_val).title() if isinstance(subgroup_val, str) else subgroup_val
         )
-
         ax.set_xlabel("Followup")
         ax.set_ylabel(self.plot_type.title())
         ax.set_title(
@@ -72,7 +72,7 @@ def _plot_subgroups(self, plot_data):
         fig.suptitle(f"Cumulative {self.plot_type.title()}", fontsize=14)
 
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def _plot_data(self, plot_data, ax):

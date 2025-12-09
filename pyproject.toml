@@ -65,6 +65,12 @@ dev = [
     "sphinx-autodoc-typehints",
 ]
 
+output = [
+    "markdown",
+    "weasyprint",
+    "tabulate"
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pySEQTarget*"]
