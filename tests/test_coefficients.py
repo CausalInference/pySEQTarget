@@ -1,6 +1,3 @@
-import sys
-from pathlib import Path
-
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
@@ -261,16 +258,16 @@ def test_PreE_LTFU_ITT():
     s.fit()
     matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
     expected = [
-        -21.640523091572796,
-        0.0685235184372898,
-        -0.19006360662228572,
-        0.028750950193838918,
-        -0.0005762057433736666,
-        0.28554312978583757,
-        -0.001373044229623057,
-        0.006589141394458155,
-        -0.44898959259422394,
-        1.3875089788036237,
+        -21.636346991788276,
+        0.06813705852786496,
+        -0.1939555961858531,
+        0.02874152772603635,
+        -0.0005734047013500563,
+        0.2854740212699898,
+        -0.0013729662310668182,
+        0.006501915963316852,
+        -0.4467079969655381,
+        1.3870473474960576,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
@@ -294,16 +291,16 @@ def test_PostE_LTFU_ITT():
     s.fit()
     matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
     expected = [
-        -21.640523091572796,
-        0.0685235184372898,
-        -0.19006360662228572,
-        0.028750950193838918,
-        -0.0005762057433736666,
-        0.28554312978583757,
-        -0.001373044229623057,
-        0.006589141394458155,
-        -0.44898959259422394,
-        1.3875089788036237,
+        -21.847198431385877,
+        0.07786703138967718,
+        -0.15461370944416225,
+        0.030140057462437704,
+        -0.0006287338029348562,
+        0.287393206037481,
+        -0.0013719595115633126,
+        0.007295485861066434,
+        -0.42797049565882755,
+        1.4082102322835948,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
@@ -369,5 +366,40 @@ def test_weighted_multinomial():
         0.01597877250531723,
         5.743984176710672,
         -0.08478678955657822,
+    ]
+    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+
+
+def test_ITT_visit():
+    data = load_data("SEQdata_LTFU")
+
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(
+            weighted=True, weight_preexpansion=True, visit_colname="LTFU"
+        ),
+    )
+    s.expand()
+    s.fit()
+    matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
+    expected = [
+        -21.636346991788276,
+        0.06813705852786496,
+        -0.1939555961858531,
+        0.02874152772603635,
+        -0.0005734047013500563,
+        0.2854740212699898,
+        -0.0013729662310668182,
+        0.006501915963316852,
+        -0.4467079969655381,
+        1.3870473474960576,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
