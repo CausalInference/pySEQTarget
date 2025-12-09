@@ -1,3 +1,5 @@
+from pytest import approx
+
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
@@ -32,7 +34,7 @@ def test_ITT_coefs():
         -0.01339242049205771,
         0.20072409918428052,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PreE_dose_response_coefs():
@@ -63,7 +65,7 @@ def test_PreE_dose_response_coefs():
         0.010537967151467553,
         0.0007772316818101141,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PostE_dose_response_coefs():
@@ -98,7 +100,7 @@ def test_PostE_dose_response_coefs():
         -0.02106338184559446,
         0.14867250693140854,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PreE_censoring_coefs():
@@ -129,7 +131,7 @@ def test_PreE_censoring_coefs():
         0.0011281734101133744,
     ]
 
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PostE_censoring_coefs():
@@ -162,7 +164,7 @@ def test_PostE_censoring_coefs():
         0.013503198983327514,
         0.4466573801510379,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PreE_censoring_excused_coefs():
@@ -196,7 +198,7 @@ def test_PreE_censoring_excused_coefs():
         0.08365564531281737,
         -0.0006220464783614585,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PostE_censoring_excused_coefs():
@@ -234,7 +236,7 @@ def test_PostE_censoring_excused_coefs():
         0.0014679503081325516,
         0.3008769969502361,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PreE_LTFU_ITT():
@@ -269,7 +271,7 @@ def test_PreE_LTFU_ITT():
         -0.4467079969655381,
         1.3870473474960576,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_PostE_LTFU_ITT():
@@ -302,7 +304,7 @@ def test_PostE_LTFU_ITT():
         -0.42797049565882755,
         1.4082102322835948,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_ITT_multinomial():
@@ -335,7 +337,7 @@ def test_ITT_multinomial():
         0.7847862691929901,
         1.4703411759229423,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_weighted_multinomial():
@@ -367,7 +369,7 @@ def test_weighted_multinomial():
         5.743984176710672,
         -0.08478678955657822,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
 
 
 def test_ITT_visit():
@@ -402,4 +404,4 @@ def test_ITT_visit():
         -0.4467079969655381,
         1.3870473474960576,
     ]
-    assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    assert matrix == approx(expected, rel=1e-3)
