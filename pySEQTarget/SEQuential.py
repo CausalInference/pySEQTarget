@@ -17,9 +17,16 @@ from .initialization import (_cense_denominator, _cense_numerator,
 from .plot import _survival_plot
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
-from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
-                        _weight_bind, _weight_predict, _weight_setup,
-                        _weight_stats)
+from .weighting import (
+    _fit_denominator,
+    _fit_LTFU,
+    _fit_numerator,
+    _fit_visit,
+    _weight_bind,
+    _weight_predict,
+    _weight_setup,
+    _weight_stats,
+)
 
 
 class SEQuential:
@@ -93,7 +100,7 @@ class SEQuential:
             if self.denominator is None:
                 self.denominator = _denominator(self)
 
-            if self.cense_colname is not None:
+            if self.cense_colname is not None or self.visit_colname is not None:
                 if self.cense_numerator is None:
                     self.cense_numerator = _cense_numerator(self)
 
@@ -112,6 +119,7 @@ class SEQuential:
             self.cense_colname,
             self.cense_eligible_colname,
             self.compevent_colname,
+            self.visit_colname,
             *self.weight_eligible_colnames,
             *self.excused_colnames,
         ]
@@ -212,6 +220,7 @@ class SEQuential:
                     WDT[col] = WDT[col].astype("category")
 
             _fit_LTFU(self, WDT)
+            _fit_visit(self, WDT)
             _fit_numerator(self, WDT)
             _fit_denominator(self, WDT)
 

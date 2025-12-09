@@ -31,8 +31,15 @@ def _param_checker(self):
             "Only one of followup_class or followup_include can be set to True."
         )
 
-    if self.weighted and self.method == "ITT" and self.cense_colname is None:
-        raise ValueError("For weighted ITT analyses, cense_colname must be provided.")
+    if (
+        self.weighted
+        and self.method == "ITT"
+        and self.cense_colname is None
+        and self.visit_colname is None
+    ):
+        raise ValueError(
+            "For weighted ITT analyses, cense_colname or visit_colname must be provided."
+        )
 
     if self.excused:
         _, self.excused_colnames = _pad(self.treatment_level, self.excused_colnames)

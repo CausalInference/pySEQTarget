@@ -12,6 +12,11 @@ def _weight_bind(self, WDT):
 
     WDT = self.DT.join(WDT, on=on, how=join)
 
+    if self.visit_colname is not None:
+        visit = pl.col(self.visit_colname) == 0
+    else:
+        visit = pl.lit(False)
+
     if self.weight_preexpansion and self.excused:
         trial = (pl.col("trial") == 0) & (pl.col("period") == 0)
         excused = (
@@ -21,6 +26,7 @@ def _weight_bind(self, WDT):
         override = (
             trial
             | excused
+            | visit
             | pl.col(self.outcome_col).is_null()
             | (pl.col("denominator") < 1e-7)
         )
@@ -33,6 +39,7 @@ def _weight_bind(self, WDT):
         override = (
             trial
             | excused
+            | visit
             | pl.col(self.outcome_col).is_null()
             | (pl.col("denominator") < 1e-7)
             | (pl.col("numerator") < 1e-7)
@@ -45,24 +52,35 @@ def _weight_bind(self, WDT):
         override = (
             trial
             | excused
+            | visit
             | pl.col(self.outcome_col).is_null()
             | (pl.col("denominator") < 1e-15)
             | pl.col("numerator").is_null()
         )
 
     self.DT = (
-        WDT.with_columns(
-            pl.when(override)
-            .then(pl.lit(1.0))
-            .otherwise(pl.col("numerator") / pl.col("denominator"))
-            .alias("wt")
+        (
+            WDT.with_columns(
+                pl.when(override)
+                .then(pl.lit(1.0))
+                .otherwise(pl.col("numerator") / pl.col("denominator"))
+                .alias("wt")
+            )
+            .sort([self.id_col, "trial", "followup"])
+            .with_columns(
+                pl.col("wt")
+                .fill_null(1.0)
+                .cum_prod()
+                .over([self.id_col, "trial"])
+                .alias("weight")
+            )
         )
-        .sort([self.id_col, "trial", "followup"])
         .with_columns(
-            pl.col("wt")
-            .fill_null(1.0)
-            .cum_prod()
-            .over([self.id_col, "trial"])
-            .alias("weight")
+            (
+                pl.col("weight")
+                * pl.col("_cense").fill_null(1.0)
+                * pl.col("_visit").fill_null(1.0)
+            ).alias("weight")
         )
+        .drop(["_cense", "_visit"])
     )

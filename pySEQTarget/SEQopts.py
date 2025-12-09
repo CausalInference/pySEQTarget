@@ -134,6 +134,7 @@ class SEQopts:
     subgroup_colname: str = None
     treatment_level: List[int] = field(default_factory=lambda: [0, 1])
     trial_include: bool = True
+    visit_colname: str = None
     weight_eligible_colnames: List[str] = field(default_factory=lambda: [])
     weight_min: float = 0.0
     weight_max: float = None
