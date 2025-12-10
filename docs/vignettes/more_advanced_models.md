@@ -63,6 +63,14 @@ my_analysis.bootstrap()
 
 Now that the underlying bootstrap structure has been in place, we can simply continue as we would in simpler models- fit, survival, plot, collect, and dump.
 
+You can recover all results through the collection, and interact with them as you would normally in Python; however, to dump to md or pdf you may require the optional depedencies which interact with these file formats.
+
+These can be easily installed through the `output` optional dependencies with pySEQTarget.
+
+```shell
+pip install pySEQTarget[output]
+```
+
 ```python
 my_analysis.fit()
 my_analysis.survival()
