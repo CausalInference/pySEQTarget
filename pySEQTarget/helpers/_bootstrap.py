@@ -58,13 +58,14 @@ def bootstrap_loop(method):
         start = time.perf_counter()
 
         results = []
+        original_DT = self.DT
+
         full = method(self, *args, **kwargs)
         results.append(full)
 
         if getattr(self, "bootstrap_nboot") > 0 and getattr(
             self, "_boot_samples", None
         ):
-            original_DT = self.DT
             nboot = self.bootstrap_nboot
             ncores = self.ncores
             seed = getattr(self, "seed", None)
