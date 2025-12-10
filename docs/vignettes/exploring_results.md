@@ -1,7 +1,14 @@
 # Exploring Results
-## SEQuential Analysis: {date}: censoring
 
-Here, let's explore the output from our more advanced analysis.
+Recall our previous example, {doc}`~vignettes/more_advanced_models`, where we finalized and collected our results with 
+
+```python
+my_output = my_analysis.collect()
+my_output.to_md()
+```
+Let us now go over what the dump to md looks like and explore our output in further detail.
+
+## SEQuential Analysis: {date}: censoring
 
 ## Weighting
 
