@@ -10,10 +10,17 @@ def _random_selection(self):
         self.DT.select(
             [self.id_col, "trial", f"{self.treatment_col}{self.indicator_baseline}"]
         )
-        .with_columns((pl.col(self.id_col) + "_" + pl.col("trial")).alias("trialID"))
-        .filter(pl.col(f"{self.treatment_col}{self.indicator_baseline}") == 0)
+        .with_columns(
+            (
+                pl.col(self.id_col).cast(pl.Utf8) + "_" + pl.col("trial").cast(pl.Utf8)
+            ).alias("trialID")
+        )
+        .filter(
+            pl.col(f"{self.treatment_col}{self.indicator_baseline}")
+            == self.treatment_level[0]
+        )
         .unique("trialID")
-        .to_series()
+        .get_column("trialID")
         .to_list()
     )
 
@@ -24,8 +31,14 @@ def _random_selection(self):
 
     self.DT = (
         self.DT.with_columns(
-            (pl.col(self.id_col) + "_" + pl.col("trial")).alias("trialID")
+            (
+                pl.col(self.id_col).cast(pl.Utf8) + "_" + pl.col("trial").cast(pl.Utf8)
+            ).alias("trialID")
         )
-        .filter(pl.col("trialID").is_in(sample))
+        .filter(
+            pl.col("trialID").is_in(sample)
+            | pl.col(f"{self.treatment_col}{self.indicator_baseline}")
+            != self.treatment_level[0]
+        )
         .drop("trialID")
     )
