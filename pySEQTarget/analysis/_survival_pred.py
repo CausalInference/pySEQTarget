@@ -370,3 +370,11 @@ def _calculate_survival(self, risk_data):
             [(1 - pl.col("pred")).alias("pred"), pl.lit("survival").alias("estimate")]
         )
     return surv
+
+
+def _clamp(data):
+    """Clamp prediction and CI columns to [0, 1] bounds."""
+    cols = ["pred", "LCI", "UCI"]
+    exists = [c for c in cols if c in data.columns]
+
+    return data.with_columns([pl.col(col).clip(0.0, 1.0) for col in exists])

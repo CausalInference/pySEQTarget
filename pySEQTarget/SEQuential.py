@@ -266,7 +266,7 @@ class SEQuential:
 
         risk_data = _pred_risk(self)
         surv_data = _calculate_survival(self, risk_data)
-        self.km_data = pl.concat([risk_data, surv_data])
+        self.km_data = _clamp(pl.concat([risk_data, surv_data]))
         self.risk_estimates = _risk_estimates(self)
 
         end = time.perf_counter()
