@@ -101,7 +101,7 @@ class SEQuential:
                     self.cense_denominator = _cense_denominator(self)
 
         _param_checker(self)
-        _datachecker(self)
+        _data_checker(self)
 
     def expand(self) -> None:
         """

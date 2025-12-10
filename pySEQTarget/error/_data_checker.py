@@ -1,7 +1,7 @@
 import polars as pl
 
 
-def _datachecker(self):
+def _data_checker(self):
     check = self.data.group_by(self.id_col).agg(
         [pl.len().alias("row_count"), pl.col(self.time_col).max().alias("max_time")]
     )
