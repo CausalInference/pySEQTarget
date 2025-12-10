@@ -1,6 +1,6 @@
 # Getting Started
 
-Getting started with SEQuential is hopefully quite easy. The primary flow is to define your options through `SEQopts`, and then build and modify the state of the `SEQuential` class. Let's move through an basic tutorial:
+Getting started with SEQuential is hopefully quite easy. The primary flow is to define your options through `SEQopts`, and then build and modify the state of the `SEQuential` class. Let's move through a basic tutorial.
 
 ## A Simple Analysis
 
