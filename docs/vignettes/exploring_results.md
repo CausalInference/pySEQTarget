@@ -108,7 +108,7 @@ P_bas                1.6141      0.281      5.752      0.000       1.064       2
 
 ### Survival
 
-If we define `km_curves` in our options, we have the option to extract risk information between treatment values. These will be returned in the table below. Additionally, plots you create will be stored here.
+If we enable `km_curves` in our options, we can extract risk information between treatment values. These will be returned in the table below. Additionally, plots you create will be stored here.
 
 To note, you can see here we have a risk plot. If you would like a different plot, you can simply specify another plot to be made when calling the class method {py:meth}`~pySEQTarget.SEQuential.plot`. This can be done on any `SEQuential` class object, or when collecting, you can also access the data used to create these plots with
 
