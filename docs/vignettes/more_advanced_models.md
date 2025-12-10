@@ -74,4 +74,4 @@ my_output.to_md()
 
 ## That's it?
 
-Yes! There are very little differences between more difficult analysis and simple questions in this package. Our hope is that through utilizing almost only the SEQopts to work with your analysis, that this is a streamlined process that is also easy to manipulate.
+Yes! There are very few differences between the code for more straightforward and more difficult analyses using this package. Our hope is that through utilizing almost only the SEQopts to work with your analysis, that this is a streamlined process that is also easy to manipulate.
