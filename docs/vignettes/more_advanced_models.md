@@ -77,6 +77,7 @@ my_analysis.survival()
 my_analysis.plot()
 
 my_output = my_analysis.collect()
+# Requires tabulate installation
 my_output.to_md()
 ```
 
