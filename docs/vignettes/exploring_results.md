@@ -1,7 +1,7 @@
 # Exploring Results
 ## SEQuential Analysis: {date}: censoring
 
-Here, let's explore the output from our more advanced analysis (with some additional flavor text.) Whenever you dump your results, the date will be stored at the top - here marked with {date}.
+Here, let's explore the output from our more advanced analysis.
 
 ## Weighting
 
