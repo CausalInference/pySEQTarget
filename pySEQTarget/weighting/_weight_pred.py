@@ -150,8 +150,8 @@ def _weight_predict(self, WDT):
                     .alias("numerator")
                 )
     if self.cense_colname is not None:
-        p_num = _predict_model(self, self.cense_numerator, WDT).flatten()
-        p_denom = _predict_model(self, self.cense_denominator, WDT).flatten()
+        p_num = _predict_model(self, self.cense_numerator_model, WDT).flatten()
+        p_denom = _predict_model(self, self.cense_denominator_model, WDT).flatten()
         WDT = WDT.with_columns(
             [
                 pl.Series("cense_numerator", p_num),
@@ -164,8 +164,8 @@ def _weight_predict(self, WDT):
         WDT = WDT.with_columns(pl.lit(1.0).alias("_cense"))
 
     if self.visit_colname is not None:
-        p_num = _predict_model(self, self.visit_numerator, WDT).flatten()
-        p_denom = _predict_model(self, self.visit_denominator, WDT).flatten()
+        p_num = _predict_model(self, self.visit_numerator_model, WDT).flatten()
+        p_denom = _predict_model(self, self.visit_denominator_model, WDT).flatten()
 
         WDT = WDT.with_columns(
             [

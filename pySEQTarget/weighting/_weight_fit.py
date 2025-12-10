@@ -26,7 +26,7 @@ def _fit_LTFU(self, WDT):
         WDT,
         "cense_colname",
         [self.cense_numerator, self.cense_denominator],
-        ["cense_numerator", "cense_denominator"],
+        ["cense_numerator_model", "cense_denominator_model"],
         "cense_eligible_colname",
     )
 
@@ -39,7 +39,7 @@ def _fit_visit(self, WDT):
         WDT,
         "visit_colname",
         [self.cense_numerator, self.cense_denominator],
-        ["visit_numerator", "visit_denominator"],
+        ["visit_numerator_model", "visit_denominator_model"],
     )
 
 
