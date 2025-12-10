@@ -64,7 +64,7 @@ Since this is a relatively simple model, we can immediately move to fitting out 
 At this point there are results to collect, so we could inspect them; however, let's save that for after building our survival curves and risk data.
 
 ### 'Predicting' from our Model
-Canonically in python, we usually call a `predict` method. `SEQuential` handles this internally, and instead of the usual `predict`, survival, risk, and incidence rates are derived from {py:meth}`~pySEQTarget.SEQuential.survival`. Again at this point we could collect our results and have the majority of our results; however, `SEQuential` will also plot our data for us.
+Canonically in Python, we usually call a `predict` method. `SEQuential` handles this internally, and instead of the usual `predict`, survival, risk, and incidence rates are derived from {py:meth}`~pySEQTarget.SEQuential.survival`. Again at this point we could collect our results and have the majority of our results; however, `SEQuential` will also plot our data for us.
 
 ```python
 my_analysis.survival()
