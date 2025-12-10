@@ -5,8 +5,15 @@
 .. toctree::
    :maxdepth: 2
    :hidden:
-   :caption: Contents:
+   :caption: Interface:
 
    sequential/seqopts
    sequential/sequential
    sequential/seqoutput
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Vignettes:
+
+   vignettes/getting_started
+   vignettes/more_advanced_models
