@@ -342,7 +342,7 @@ class SEQuential:
         }
 
         if self.compevent_colname is not None:
-            compevent_models = [model["compevent"] for model in self.outcome_models]
+            compevent_models = [model["compevent"] for model in self.outcome_model]
         else:
             compevent_models = None
 

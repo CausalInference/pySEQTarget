@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQTarget"
-version = "0.10.3"
+version = "0.10.4"
 description = "Sequentially Nested Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
