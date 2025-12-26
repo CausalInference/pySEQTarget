@@ -93,8 +93,10 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
     else:
         model_dict = self.outcome_model[boot_idx]
 
-    outcome_model = model_dict["outcome"]
-    ce_model = model_dict.get("compevent", None) if self.compevent_colname else None
+    outcome_model = self._offloader.load_model(model_dict["outcome"])
+    ce_model = None
+    if self.compevent_colname and "compevent" in model_dict:
+        ce_model = self._offloader.load_model(model_dict["compevent"])
 
     all_treatments = []
     for val in self.treatment_level:
