@@ -1,6 +1,7 @@
 import multiprocessing
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
+import os
 
 
 @dataclass
@@ -56,6 +57,10 @@ class SEQopts:
     :type ncores: int
     :param numerator: Override to specify the outcome patsy formula for numerator models
     :type numerator: str
+    :param offload: Boolean to offload intermediate model data to disk
+    :type offload: bool
+    :param offload_dir: Directory to offload intermediate model data
+    :type offload_dir: str
     :param parallel: Boolean to run model fitting in parallel
     :type parallel: bool
     :param plot_colors: List of colors for KM plots, if applicable
@@ -80,6 +85,8 @@ class SEQopts:
     :type treatment_level: List[int]
     :param trial_include: Boolean to force trial values into model covariates
     :type trial_include: bool
+    :param visit_colname: Column name specifying visit number
+    :type visit_colname: str
     :param weight_eligible_colnames: List of column names of length treatment_level to identify which rows are eligible for weight fitting
     :type weight_eligible_colnames: List[str]
     :param weight_min: Minimum weight
@@ -120,6 +127,8 @@ class SEQopts:
     km_curves: bool = False
     ncores: int = multiprocessing.cpu_count()
     numerator: Optional[str] = None
+    offload: bool = False
+    offload_dir: str = "_seq_models"
     parallel: bool = False
     plot_colors: List[str] = field(
         default_factory=lambda: ["#F8766D", "#00BFC4", "#555555"]
@@ -195,3 +204,7 @@ class SEQopts:
             attr = getattr(self, i)
             if attr is not None and not isinstance(attr, list):
                 setattr(self, i, "".join(attr.split()))
+                
+        if self.offload:
+            os.makedirs(self.offload_dir, exist_ok=True)
+
