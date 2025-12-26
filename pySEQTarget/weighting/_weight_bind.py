@@ -6,6 +6,11 @@ def _weight_bind(self, WDT):
         join = "inner"
         on = [self.id_col, "period"]
         WDT = WDT.rename({self.time_col: "period"})
+        self.DT = self.DT.with_columns(
+            pl.col(self.id_col)
+            .str.replace(r"_\d+$", "")
+            .alias(self.id_col)
+        )
     else:
         join = "left"
         on = [self.id_col, "trial", "followup"]

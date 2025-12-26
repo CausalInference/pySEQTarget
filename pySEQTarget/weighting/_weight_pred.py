@@ -22,12 +22,16 @@ def _weight_predict(self, WDT):
             for i, level in enumerate(self.treatment_level):
                 mask = pl.col("tx_lag") == level
                 lag_mask = (WDT["tx_lag"] == level).to_numpy()
+                
+                denom_model = self._offloader.load_model(self.denominator_model[i])
+                num_model = self._offloader.load_model(self.numerator_model[i])
 
-                if self.denominator_model[i] is not None:
+
+                if denom_model is not None:
                     pred_denom = np.ones(WDT.height)
                     if lag_mask.sum() > 0:
                         subset = WDT.filter(pl.Series(lag_mask))
-                        p = _predict_model(self, self.denominator_model[i], subset)
+                        p = _predict_model(self, denom_model, subset)
                         if p.ndim == 1:
                             p = p.reshape(-1, 1)
                         p = p[:, i]
@@ -38,11 +42,11 @@ def _weight_predict(self, WDT):
                 else:
                     pred_denom = np.ones(WDT.height)
 
-                if self.numerator_model[i] is not None:
+                if num_model is not None:
                     pred_num = np.ones(WDT.height)
                     if lag_mask.sum() > 0:
                         subset = WDT.filter(pl.Series(lag_mask))
-                        p = _predict_model(self, self.numerator_model[i], subset)
+                        p = _predict_model(self, num_model, subset)
                         if p.ndim == 1:
                             p = p.reshape(-1, 1)
                         p = p[:, i]
@@ -71,12 +75,13 @@ def _weight_predict(self, WDT):
                 col = self.excused_colnames[i]
 
                 if col is not None:
+                    denom_model = self._offloader.load_model(self.denominator_model[i])
                     denom_mask = ((WDT["tx_lag"] == level) & (WDT[col] != 1)).to_numpy()
 
-                    if self.denominator_model[i] is not None and denom_mask.sum() > 0:
+                    if denom_model is not None and denom_mask.sum() > 0:
                         pred_denom = np.ones(WDT.height)
                         subset = WDT.filter(pl.Series(denom_mask))
-                        p = _predict_model(self, self.denominator_model[i], subset)
+                        p = _predict_model(self, denom_model, subset)
 
                         if p.ndim == 1:
                             prob_switch = p
@@ -119,14 +124,15 @@ def _weight_predict(self, WDT):
                     col = self.excused_colnames[i]
 
                     if col is not None:
+                        num_model = self._offloader.load_model(self.numerator_model[i])
                         num_mask = (
                             (WDT[self.treatment_col] == level) & (WDT[col] == 0)
                         ).to_numpy()
 
-                        if self.numerator_model[i] is not None and num_mask.sum() > 0:
+                        if num_model is not None and num_mask.sum() > 0:
                             pred_num = np.ones(WDT.height)
                             subset = WDT.filter(pl.Series(num_mask))
-                            p = _predict_model(self, self.numerator_model[i], subset)
+                            p = _predict_model(self, num_model, subset)
 
                             if p.ndim == 1:
                                 prob_switch = p
@@ -150,8 +156,10 @@ def _weight_predict(self, WDT):
                     .alias("numerator")
                 )
     if self.cense_colname is not None:
-        p_num = _predict_model(self, self.cense_numerator_model, WDT).flatten()
-        p_denom = _predict_model(self, self.cense_denominator_model, WDT).flatten()
+        cense_num_model = self._offloader.load_model(self.cense_numerator_model)
+        cense_denom_model = self._offloader.load_model(self.cense_denominator_model)
+        p_num = _predict_model(self, cense_num_model, WDT).flatten()
+        p_denom = _predict_model(self, cense_denom_model, WDT).flatten()
         WDT = WDT.with_columns(
             [
                 pl.Series("cense_numerator", p_num),
@@ -164,8 +172,10 @@ def _weight_predict(self, WDT):
         WDT = WDT.with_columns(pl.lit(1.0).alias("_cense"))
 
     if self.visit_colname is not None:
-        p_num = _predict_model(self, self.visit_numerator_model, WDT).flatten()
-        p_denom = _predict_model(self, self.visit_denominator_model, WDT).flatten()
+        visit_num_model = self._offloader.load_model(self.visit_numerator_model)
+        visit_denom_model = self._offloader.load_model(self.visit_denominator_model)
+        p_num = _predict_model(self, visit_num_model, WDT).flatten()
+        p_denom = _predict_model(self, visit_denom_model, WDT).flatten()
 
         WDT = WDT.with_columns(
             [
