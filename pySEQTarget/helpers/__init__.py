@@ -6,3 +6,4 @@ from ._output_files import _build_pdf as _build_pdf
 from ._pad import _pad as _pad
 from ._predict_model import _predict_model as _predict_model
 from ._prepare_data import _prepare_data as _prepare_data
+from ._offloader import Offloader as Offloader
