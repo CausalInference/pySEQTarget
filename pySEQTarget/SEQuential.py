@@ -12,7 +12,7 @@ from .analysis import (_calculate_hazard, _calculate_survival, _clamp,
                        _subgroup_fit)
 from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
-from .helpers import _col_string, _format_time, bootstrap_loop
+from .helpers import _col_string, _format_time, bootstrap_loop, Offloader
 from .initialization import (_cense_denominator, _cense_numerator,
                              _denominator, _numerator, _outcome)
 from .plot import _survival_plot
@@ -83,6 +83,10 @@ class SEQuential:
         self._rng = (
             np.random.RandomState(self.seed) if self.seed is not None else np.random
         )
+        
+        self._offloader = Offloader(
+            enabled = self.offload,
+            dir = self.offload_dir)
 
         if self.covariates is None:
             self.covariates = _outcome(self)
@@ -216,6 +220,9 @@ class SEQuential:
             _fit_visit(self, WDT)
             _fit_numerator(self, WDT)
             _fit_denominator(self, WDT)
+            
+            if self.offload:
+                _offload_weights(self, boot_idx)
 
             WDT = pl.from_pandas(WDT)
             WDT = _weight_predict(self, WDT)
@@ -244,6 +251,11 @@ class SEQuential:
                 self.weighted,
                 "weight",
             )
+        if self.offload:
+            offloaded_models = {}
+            for key, model in models.items():
+                offloaded_models[key] = self._offloader.save_model(model, key, boot_idx)
+            return offloaded_models
         return models
 
     def survival(self, **kwargs) -> None:
