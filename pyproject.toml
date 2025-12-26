@@ -39,7 +39,8 @@ dependencies = [
     "statsmodels",
     "matplotlib",
     "pyarrow",
-    "lifelines"
+    "lifelines",
+    "joblib"
 ]
 
 [project.optional-dependencies]
