@@ -6,3 +6,4 @@ from ._weight_fit import _fit_numerator as _fit_numerator
 from ._weight_fit import _fit_visit as _fit_visit
 from ._weight_pred import _weight_predict as _weight_predict
 from ._weight_stats import _weight_stats as _weight_stats
+from ._weight_offload import _offload_weights as _offload_weights
