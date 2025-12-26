@@ -40,6 +40,7 @@ def _bootstrap_worker(obj, method_name, original_DT, i, seed, args, kwargs):
         np.random.RandomState(seed + i) if seed is not None else np.random.RandomState()
     )
     obj.DT = _prepare_boot_data(obj, original_DT, i)
+    obj._current_boot_idx = i + 1
 
     # Disable bootstrapping to prevent recursion
     obj.bootstrap_nboot = 0
@@ -59,7 +60,8 @@ def bootstrap_loop(method):
 
         results = []
         original_DT = self.DT
-
+        
+        self._current_boot_idx = None
         full = method(self, *args, **kwargs)
         results.append(full)
 
@@ -97,9 +99,12 @@ def bootstrap_loop(method):
                 self._rng = original_rng
             else:
                 for i in tqdm(range(nboot), desc="Bootstrapping..."):
+                    self._current_boot_idx = i + 1
                     self.DT = _prepare_boot_data(self, original_DT, i)
+                    self.bootstrap_nboot = 0
                     boot_fit = method(self, *args, **kwargs)
                     results.append(boot_fit)
+                self.bootstrap_nboot = nboot
 
             self.DT = original_DT
 

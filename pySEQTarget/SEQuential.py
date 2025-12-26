@@ -205,7 +205,10 @@ class SEQuential:
             raise ValueError(
                 "Bootstrap sampling not found. Please run the 'bootstrap' method before fitting with bootstrapping."
             )
-
+        boot_idx = None
+        if hasattr(self, "_current_boot_idx"):
+            boot_idx = self._current_boot_idx
+        
         if self.weighted:
             WDT = _weight_setup(self)
             if not self.weight_preexpansion and not self.excused:
