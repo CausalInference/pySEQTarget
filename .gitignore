@@ -166,3 +166,6 @@ cython_debug/
 
 # uv lock file
 uv.lock
+
+# offloaded data files (offload test)
+_seq_models/
