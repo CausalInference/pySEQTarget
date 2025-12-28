@@ -39,7 +39,9 @@ def _bootstrap_worker(obj, method_name, original_DT, i, seed, args, kwargs):
     obj._rng = (
         np.random.RandomState(seed + i) if seed is not None else np.random.RandomState()
     )
+    original_DT = obj._offloader.load_dataframe(original_DT)
     obj.DT = _prepare_boot_data(obj, original_DT, i)
+    del original_DT
     obj._current_boot_idx = i + 1
 
     # Disable bootstrapping to prevent recursion
@@ -72,10 +74,13 @@ def bootstrap_loop(method):
             ncores = self.ncores
             seed = getattr(self, "seed", None)
             method_name = method.__name__
+            
+            original_DT_ref = self._offloader.save_dataframe(original_DT, "_DT")
 
             if getattr(self, "parallel", False):
                 original_rng = getattr(self, "_rng", None)
                 self._rng = None
+                self.DT = None
 
                 with ProcessPoolExecutor(max_workers=ncores) as executor:
                     futures = [
@@ -83,7 +88,7 @@ def bootstrap_loop(method):
                             _bootstrap_worker,
                             self,
                             method_name,
-                            original_DT,
+                            original_DT_ref,
                             i,
                             seed,
                             args,
@@ -97,16 +102,21 @@ def bootstrap_loop(method):
                         results.append(j.result())
 
                 self._rng = original_rng
+                self.DT = self._offloader.load_dataframe(original_DT_ref)
             else:
+                original_DT_ref = self._offloader.save_dataframe(original_DT, "_DT")
+                del original_DT
                 for i in tqdm(range(nboot), desc="Bootstrapping..."):
                     self._current_boot_idx = i + 1
-                    self.DT = _prepare_boot_data(self, original_DT, i)
+                    tmp = self._offloader.load_dataframe(original_DT_ref)
+                    self.DT = _prepare_boot_data(self, tmp, i)
+                    del tmp
                     self.bootstrap_nboot = 0
                     boot_fit = method(self, *args, **kwargs)
                     results.append(boot_fit)
-                self.bootstrap_nboot = nboot
-
-            self.DT = original_DT
+                    
+                self.bootstrap_nboot = nboot 
+                self.DT = self._offloader.load_dataframe(original_DT_ref)
 
             end = time.perf_counter()
             self._model_time = _format_time(start, end)
