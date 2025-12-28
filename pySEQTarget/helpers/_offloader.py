@@ -33,3 +33,20 @@ class Offloader:
             return ref
         
         return joblib.load(ref)
+    
+    def save_dataframe(self, df: pl.DataFrame, name: str) -> Union[pl.DataFrame, str]:
+        if not self.enabled:
+            return df
+        
+        filename = f"{name}.parquet"
+        filepath = self.dir / filename
+        
+        df.write_parquet(filepath, compression="zstd")
+        
+        return str(filepath)
+    
+    def load_dataframe(self, ref: Union[pl.DataFrame, str]) -> pl.DataFrame:
+        if not self.enabled or not isinstance(ref, str):
+            return ref
+        
+        return pl.read_parquet(ref)
