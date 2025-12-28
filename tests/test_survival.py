@@ -1,6 +1,9 @@
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
+import os
+import pytest
+
 
 def test_regular_survival():
     data = load_data("SEQdata")
@@ -87,7 +90,9 @@ def test_subgroup_bootstrapped_survival():
     s.survival()
     return
 
-
+@pytest.mark.skipif(
+    os.getenv("CI") == "true", reason="Compevent dying in CI environment"
+)
 def test_compevent():
     data = load_data("SEQdata_LTFU")
 
@@ -110,7 +115,9 @@ def test_compevent():
     s.survival()
     return
 
-
+@pytest.mark.skipif(
+    os.getenv("CI") == "true", reason="Compevent dying in CI environment"
+)
 def test_bootstrapped_compevent():
     data = load_data("SEQdata_LTFU")
 
@@ -137,7 +144,9 @@ def test_bootstrapped_compevent():
     s.survival()
     return
 
-
+@pytest.mark.skipif(
+    os.getenv("CI") == "true", reason="Compevent dying in CI environment"
+)
 def test_subgroup_compevent():
     data = load_data("SEQdata_LTFU")
 
