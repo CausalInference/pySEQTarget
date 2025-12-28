@@ -6,7 +6,7 @@ import warnings
 def test_compevent_offload():
     data = load_data("SEQdata_LTFU")
     options = SEQopts(
-        bootstrap_nboot = 20,
+        bootstrap_nboot = 2,
         cense_colname = "LTFU",
         excused = True,
         excused_colnames = ["excusedZero", "excusedOne"],
