@@ -7,9 +7,7 @@ def _weight_bind(self, WDT):
         on = [self.id_col, "period"]
         WDT = WDT.rename({self.time_col: "period"})
         self.DT = self.DT.with_columns(
-            pl.col(self.id_col)
-            .str.replace(r"_\d+$", "")
-            .alias(self.id_col)
+            pl.col(self.id_col).str.replace(r"_\d+$", "").alias(self.id_col)
         )
     else:
         join = "left"

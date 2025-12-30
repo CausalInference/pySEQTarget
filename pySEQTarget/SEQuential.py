@@ -12,15 +12,15 @@ from .analysis import (_calculate_hazard, _calculate_survival, _clamp,
                        _subgroup_fit)
 from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
-from .helpers import _col_string, _format_time, bootstrap_loop, Offloader
+from .helpers import Offloader, _col_string, _format_time, bootstrap_loop
 from .initialization import (_cense_denominator, _cense_numerator,
                              _denominator, _numerator, _outcome)
 from .plot import _survival_plot
 from .SEQopts import SEQopts
 from .SEQoutput import SEQoutput
 from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
-                        _fit_visit, _weight_bind, _weight_predict,
-                        _weight_setup, _weight_stats, _offload_weights)
+                        _fit_visit, _offload_weights, _weight_bind,
+                        _weight_predict, _weight_setup, _weight_stats)
 
 
 class SEQuential:
@@ -83,10 +83,8 @@ class SEQuential:
         self._rng = (
             np.random.RandomState(self.seed) if self.seed is not None else np.random
         )
-        
-        self._offloader = Offloader(
-            enabled = self.offload,
-            dir = self.offload_dir)
+
+        self._offloader = Offloader(enabled=self.offload, dir=self.offload_dir)
 
         if self.covariates is None:
             self.covariates = _outcome(self)
@@ -208,7 +206,7 @@ class SEQuential:
         boot_idx = None
         if hasattr(self, "_current_boot_idx"):
             boot_idx = self._current_boot_idx
-        
+
         if self.weighted:
             WDT = _weight_setup(self)
             if not self.weight_preexpansion and not self.excused:
@@ -223,7 +221,7 @@ class SEQuential:
             _fit_visit(self, WDT)
             _fit_numerator(self, WDT)
             _fit_denominator(self, WDT)
-            
+
             if self.offload:
                 _offload_weights(self, boot_idx)
 

@@ -62,7 +62,7 @@ def bootstrap_loop(method):
 
         results = []
         original_DT = self.DT
-        
+
         self._current_boot_idx = None
         full = method(self, *args, **kwargs)
         results.append(full)
@@ -74,7 +74,7 @@ def bootstrap_loop(method):
             ncores = self.ncores
             seed = getattr(self, "seed", None)
             method_name = method.__name__
-            
+
             original_DT_ref = self._offloader.save_dataframe(original_DT, "_DT")
 
             if getattr(self, "parallel", False):
@@ -114,8 +114,8 @@ def bootstrap_loop(method):
                     self.bootstrap_nboot = 0
                     boot_fit = method(self, *args, **kwargs)
                     results.append(boot_fit)
-                    
-                self.bootstrap_nboot = nboot 
+
+                self.bootstrap_nboot = nboot
                 self.DT = self._offloader.load_dataframe(original_DT_ref)
 
             end = time.perf_counter()

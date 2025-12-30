@@ -11,7 +11,7 @@ def _get_outcome_predictions(self, TxDT, idx=None):
         model_dict = boot_model[idx] if idx is not None else boot_model
         outcome_model = self._offloader.load_model(model_dict["outcome"])
         predictions["outcome"].append(outcome_model.predict(data))
-        
+
         if self.compevent_colname is not None:
             compevent_model = self._offloader.load_model(model_dict["compevent"])
             predictions["compevent"].append(compevent_model.predict(data))

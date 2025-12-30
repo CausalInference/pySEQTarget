@@ -1,7 +1,7 @@
 import multiprocessing
+import os
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
-import os
 
 
 @dataclass
@@ -204,7 +204,6 @@ class SEQopts:
             attr = getattr(self, i)
             if attr is not None and not isinstance(attr, list):
                 setattr(self, i, "".join(attr.split()))
-                
+
         if self.offload:
             os.makedirs(self.offload_dir, exist_ok=True)
-

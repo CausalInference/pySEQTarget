@@ -22,10 +22,9 @@ def _weight_predict(self, WDT):
             for i, level in enumerate(self.treatment_level):
                 mask = pl.col("tx_lag") == level
                 lag_mask = (WDT["tx_lag"] == level).to_numpy()
-                
+
                 denom_model = self._offloader.load_model(self.denominator_model[i])
                 num_model = self._offloader.load_model(self.numerator_model[i])
-
 
                 if denom_model is not None:
                     pred_denom = np.ones(WDT.height)
