@@ -89,6 +89,8 @@ class SEQopts:
     :type visit_colname: str
     :param weight_eligible_colnames: List of column names of length treatment_level to identify which rows are eligible for weight fitting
     :type weight_eligible_colnames: List[str]
+    :param weight_fit_method: The fitting method to be used ["newton", "bfgs", "lbfgs", "nm"], default "newton"
+    :type weight_fit_method: str
     :param weight_min: Minimum weight
     :type weight_min: float
     :param weight_max: Maximum weight
@@ -145,6 +147,7 @@ class SEQopts:
     trial_include: bool = True
     visit_colname: str = None
     weight_eligible_colnames: List[str] = field(default_factory=lambda: [])
+    weight_fit_method: Literal["newton", "bfgs", "lbfgs", "nm"] = "newton"
     weight_min: float = 0.0
     weight_max: float = None
     weight_lag_condition: bool = True

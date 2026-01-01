@@ -15,7 +15,7 @@ def _fit_pair(
     for rhs, out in zip(formula_attr, output_attrs):
         formula = f"{outcome}~{rhs}"
         model = smf.glm(formula, WDT, family=sm.families.Binomial())
-        setattr(self, out, model.fit(disp=0))
+        setattr(self, out, model.fit(disp=0, method=self.weight_fit_method))
 
 
 def _fit_LTFU(self, WDT):
@@ -75,7 +75,7 @@ def _fit_numerator(self, WDT):
             model = smf.logit(formula, DT_subset)
         else:
             model = smf.mnlogit(formula, DT_subset)
-        model_fit = model.fit(disp=0)
+        model_fit = model.fit(disp=0, method=self.weight_fit_method)
         fits.append(model_fit)
 
     self.numerator_model = fits
@@ -116,7 +116,7 @@ def _fit_denominator(self, WDT):
             model = smf.logit(formula, DT_subset)
         else:
             model = smf.mnlogit(formula, DT_subset)
-        model_fit = model.fit(disp=0)
+        model_fit = model.fit(disp=0, method=self.weight_fit_method)
         fits.append(model_fit)
 
     self.denominator_model = fits
