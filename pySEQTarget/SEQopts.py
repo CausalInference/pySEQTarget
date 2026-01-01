@@ -19,7 +19,7 @@ class SEQopts:
     :type bootstrap_CI_method: str
     :param cense_colname: Column name for censoring effect (LTFU, etc.)
     :type cense_colname: str
-    :param cense_denominator: Override to specify denominator patsy formula for censoring models
+    :param cense_denominator: Override to specify denominator patsy formula for censoring models; "1" or "" indicate intercept only model
     :type cense_denominator: Optional[str] or None
     :param cense_numerator: Override to specify numerator patsy formula for censoring models
     :type cense_numerator: Optional[str] or None
@@ -55,7 +55,7 @@ class SEQopts:
     :type km_curves: bool
     :param ncores: Number of cores to use if running in parallel
     :type ncores: int
-    :param numerator: Override to specify the outcome patsy formula for numerator models
+    :param numerator: Override to specify the outcome patsy formula for numerator models; "1" or "" indicate intercept only model
     :type numerator: str
     :param offload: Boolean to offload intermediate model data to disk
     :type offload: bool

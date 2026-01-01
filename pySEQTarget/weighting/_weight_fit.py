@@ -49,7 +49,11 @@ def _fit_numerator(self, WDT):
     if self.method == "ITT":
         return
     predictor = "switch" if self.excused else self.treatment_col
-    formula = f"{predictor}~{self.numerator}"
+    # Handle intercept-only formula when numerator is "1" or empty
+    if self.numerator in ("1", ""):
+        formula = f"{predictor}~1"
+    else:
+        formula = f"{predictor}~{self.numerator}"
     tx_bas = (
         f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"
     )
@@ -86,7 +90,11 @@ def _fit_denominator(self, WDT):
         if self.excused and not self.weight_preexpansion
         else self.treatment_col
     )
-    formula = f"{predictor}~{self.denominator}"
+    # Handle intercept-only formula when denominator is "1" or empty
+    if self.denominator in ("1", ""):
+        formula = f"{predictor}~1"
+    else:
+        formula = f"{predictor}~{self.denominator}"
     fits = []
     # Use logit for binary 0/1 treatment with censoring method only
     # treatment_level=[1,2] or dose-response always uses mnlogit
