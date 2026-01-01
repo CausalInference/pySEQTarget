@@ -54,6 +54,9 @@ def _fit_numerator(self, WDT):
         f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"
     )
     fits = []
+    # Use logit for binary 0/1 treatment with censoring method only
+    # treatment_level=[1,2] or dose-response always uses mnlogit
+    is_binary = sorted(self.treatment_level) == [0, 1] and self.method == "censoring"
     for i, level in enumerate(self.treatment_level):
         if self.excused and self.excused_colnames[i] is not None:
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
@@ -63,11 +66,16 @@ def _fit_numerator(self, WDT):
             DT_subset = DT_subset[DT_subset[tx_bas] == level]
         if self.weight_eligible_colnames[i] is not None:
             DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
-        model = smf.mnlogit(formula, DT_subset)
+        # Use logit for binary 0/1 censoring, mnlogit otherwise
+        if is_binary:
+            model = smf.logit(formula, DT_subset)
+        else:
+            model = smf.mnlogit(formula, DT_subset)
         model_fit = model.fit(disp=0)
         fits.append(model_fit)
 
     self.numerator_model = fits
+    self._is_binary_treatment = is_binary
 
 
 def _fit_denominator(self, WDT):
@@ -80,6 +88,9 @@ def _fit_denominator(self, WDT):
     )
     formula = f"{predictor}~{self.denominator}"
     fits = []
+    # Use logit for binary 0/1 treatment with censoring method only
+    # treatment_level=[1,2] or dose-response always uses mnlogit
+    is_binary = sorted(self.treatment_level) == [0, 1] and self.method == "censoring"
     for i, level in enumerate(self.treatment_level):
         if self.excused and self.excused_colnames[i] is not None:
             DT_subset = WDT[WDT[self.excused_colnames[i]] == 0]
@@ -92,8 +103,13 @@ def _fit_denominator(self, WDT):
         if self.weight_eligible_colnames[i] is not None:
             DT_subset = DT_subset[DT_subset[self.weight_eligible_colnames[i]] == 1]
 
-        model = smf.mnlogit(formula, DT_subset)
+        # Use logit for binary 0/1 censoring, mnlogit otherwise
+        if is_binary:
+            model = smf.logit(formula, DT_subset)
+        else:
+            model = smf.mnlogit(formula, DT_subset)
         model_fit = model.fit(disp=0)
         fits.append(model_fit)
 
     self.denominator_model = fits
+    self._is_binary_treatment = is_binary

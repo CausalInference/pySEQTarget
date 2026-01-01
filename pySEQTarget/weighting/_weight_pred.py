@@ -9,6 +9,11 @@ def _weight_predict(self, WDT):
     grouping += ["trial"] if not self.weight_preexpansion else []
     time = self.time_col if self.weight_preexpansion else "followup"
 
+    # Check if binary 0/1 treatment with censoring (set during fitting)
+    # Must match the logic in _weight_fit.py
+    is_binary = getattr(self, '_is_binary_treatment', 
+                        sorted(self.treatment_level) == [0, 1] and self.method == "censoring")
+
     if self.method == "ITT":
         WDT = WDT.with_columns(
             [pl.lit(1.0).alias("numerator"), pl.lit(1.0).alias("denominator")]
@@ -23,6 +28,7 @@ def _weight_predict(self, WDT):
                 mask = pl.col("tx_lag") == level
                 lag_mask = (WDT["tx_lag"] == level).to_numpy()
 
+                # Load models via offloader (handles both offloaded and in-memory models)
                 denom_model = self._offloader.load_model(self.denominator_model[i])
                 num_model = self._offloader.load_model(self.numerator_model[i])
 
@@ -31,13 +37,23 @@ def _weight_predict(self, WDT):
                     if lag_mask.sum() > 0:
                         subset = WDT.filter(pl.Series(lag_mask))
                         p = _predict_model(self, denom_model, subset)
-                        if p.ndim == 1:
-                            p = p.reshape(-1, 1)
-                        p = p[:, i]
+                        
+                        # Handle binary vs multinomial prediction output
+                        if is_binary:
+                            # logit returns P(Y=1) directly as 1D array
+                            # For i=0 (level 0): want P(stay at 0) = 1 - P(Y=1)
+                            # For i=1 (level 1): want P(switch to 1) = P(Y=1)
+                            p_class = p if i == 1 else (1 - p)
+                        else:
+                            # mnlogit returns [P(Y=0), P(Y=1), ...] as 2D array
+                            if p.ndim == 1:
+                                p = p.reshape(-1, 1)
+                            p_class = p[:, i]
+                        
                         switched_treatment = (
                             subset[self.treatment_col] != subset["tx_lag"]
                         ).to_numpy()
-                        pred_denom[lag_mask] = np.where(switched_treatment, 1.0 - p, p)
+                        pred_denom[lag_mask] = np.where(switched_treatment, 1.0 - p_class, p_class)
                 else:
                     pred_denom = np.ones(WDT.height)
 
@@ -46,13 +62,21 @@ def _weight_predict(self, WDT):
                     if lag_mask.sum() > 0:
                         subset = WDT.filter(pl.Series(lag_mask))
                         p = _predict_model(self, num_model, subset)
-                        if p.ndim == 1:
-                            p = p.reshape(-1, 1)
-                        p = p[:, i]
+                        
+                        # Handle binary vs multinomial prediction output
+                        if is_binary:
+                            # logit returns P(Y=1) directly as 1D array
+                            p_class = p if i == 1 else (1 - p)
+                        else:
+                            # mnlogit returns [P(Y=0), P(Y=1), ...] as 2D array
+                            if p.ndim == 1:
+                                p = p.reshape(-1, 1)
+                            p_class = p[:, i]
+                        
                         switched_treatment = (
                             subset[self.treatment_col] != subset["tx_lag"]
                         ).to_numpy()
-                        pred_num[lag_mask] = np.where(switched_treatment, 1.0 - p, p)
+                        pred_num[lag_mask] = np.where(switched_treatment, 1.0 - p_class, p_class)
                 else:
                     pred_num = np.ones(WDT.height)
 
