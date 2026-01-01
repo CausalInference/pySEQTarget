@@ -4,6 +4,8 @@ import numpy as np
 import polars as pl
 from lifelines import CoxPHFitter
 
+from ..helpers._fix_categories import _fix_categories_for_predict
+
 
 def _calculate_hazard(self):
     if self.subgroup_colname is None:
@@ -64,6 +66,18 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
     return _create_hazard_output(full_hr, lci, uci, val, self)
 
 
+def _safe_predict(model, data_pd):
+    """Predict with category fix fallback if needed."""
+    try:
+        return model.predict(data_pd)
+    except Exception as e:
+        if "mismatching levels" in str(e):
+            data_pd = _fix_categories_for_predict(model, data_pd)
+            return model.predict(data_pd)
+        else:
+            raise
+
+
 def _hazard_handler(self, data, idx, boot_idx, rng):
     exclude_cols = [
         "followup",
@@ -105,13 +119,14 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
         )
 
         tmp_pd = tmp.to_pandas()
-        outcome_prob = outcome_model.predict(tmp_pd)
+        outcome_prob = _safe_predict(outcome_model, tmp_pd)
         outcome_sim = rng.binomial(1, outcome_prob)
 
         tmp = tmp.with_columns([pl.Series("outcome", outcome_sim)])
 
         if ce_model is not None:
-            ce_prob = ce_model.predict(tmp_pd)
+            ce_tmp_pd = tmp.to_pandas()
+            ce_prob = _safe_predict(ce_model, ce_tmp_pd)
             ce_sim = rng.binomial(1, ce_prob)
             tmp = tmp.with_columns([pl.Series("ce", ce_sim)])
 
