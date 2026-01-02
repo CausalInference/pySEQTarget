@@ -1,5 +1,19 @@
 import polars as pl
 
+from ..helpers._fix_categories import _fix_categories_for_predict
+
+
+def _safe_predict(model, data):
+    """Predict with category fix fallback if needed."""
+    try:
+        return model.predict(data)
+    except Exception as e:
+        if "mismatching levels" in str(e):
+            data = _fix_categories_for_predict(model, data)
+            return model.predict(data)
+        else:
+            raise
+
 
 def _get_outcome_predictions(self, TxDT, idx=None):
     data = TxDT.to_pandas()
@@ -10,11 +24,11 @@ def _get_outcome_predictions(self, TxDT, idx=None):
     for boot_model in self.outcome_model:
         model_dict = boot_model[idx] if idx is not None else boot_model
         outcome_model = self._offloader.load_model(model_dict["outcome"])
-        predictions["outcome"].append(outcome_model.predict(data))
+        predictions["outcome"].append(_safe_predict(outcome_model, data.copy()))
 
         if self.compevent_colname is not None:
             compevent_model = self._offloader.load_model(model_dict["compevent"])
-            predictions["compevent"].append(compevent_model.predict(data))
+            predictions["compevent"].append(_safe_predict(compevent_model, data.copy()))
 
     return predictions
 
