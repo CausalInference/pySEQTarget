@@ -1,18 +1,6 @@
 import polars as pl
 
-from ..helpers._fix_categories import _fix_categories_for_predict
-
-
-def _safe_predict(model, data):
-    """Predict with category fix fallback if needed."""
-    try:
-        return model.predict(data)
-    except Exception as e:
-        if "mismatching levels" in str(e):
-            data = _fix_categories_for_predict(model, data)
-            return model.predict(data)
-        else:
-            raise
+from ..helpers._predict_model import _safe_predict
 
 
 def _get_outcome_predictions(self, TxDT, idx=None):
