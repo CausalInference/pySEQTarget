@@ -68,15 +68,26 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
 
 def _safe_predict(model, data_pd):
     """Predict with category fix fallback if needed."""
+    # Make a copy to avoid modifying original
+    data_pd = data_pd.copy()
+    
     try:
-        return model.predict(data_pd)
+        probs = model.predict(data_pd)
     except Exception as e:
         if "mismatching levels" in str(e):
             data_pd = _fix_categories_for_predict(model, data_pd)
-            return model.predict(data_pd)
+            probs = model.predict(data_pd)
         else:
             raise
 
+    # Ensure probabilities are valid (clip to [0, 1] and replace NaN with 0.5)
+    probs = np.array(probs)
+    if np.any(np.isnan(probs)):
+        warnings.warn("NaN values in predicted probabilities, replacing with 0.5")
+        probs = np.where(np.isnan(probs), 0.5, probs)
+    probs = np.clip(probs, 0, 1)
+    
+    return probs
 
 def _hazard_handler(self, data, idx, boot_idx, rng):
     exclude_cols = [
