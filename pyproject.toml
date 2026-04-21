@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQTarget"
-version = "0.13.0"
+version = "0.13.1"
 description = "Sequentially Nested Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -30,6 +30,7 @@ authors = [
 
 maintainers = [
     {name = "Ryan O'Dea", email = "ryan.odea@psi.ch"},
+    {name = "Tom Palmer", email = "tom.palmer@bristol.ac.uk"},
 ]
 
 dependencies = [
