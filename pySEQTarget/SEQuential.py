@@ -1,5 +1,6 @@
 import datetime
 import time
+import warnings
 from collections import Counter
 from dataclasses import asdict
 from typing import List, Literal, Optional
@@ -87,6 +88,23 @@ class SEQuential:
 
             if self.denominator is None:
                 self.denominator = _denominator(self)
+
+            if (
+                self.method != "ITT"
+                and self.numerator is not None
+                and self.denominator is not None
+                and self.numerator == self.denominator
+            ):
+                warnings.warn(
+                    f"Numerator and denominator weight models use identical "
+                    f"covariates ('{self.numerator}'); the stabilized weights "
+                    "will all equal 1 (i.e., no weighting). The denominator "
+                    "should typically include the time-varying confounders "
+                    "that the numerator omits — check for a typo in either or "
+                    "both of 'numerator' and 'denominator'.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
             if self.cense_colname is not None or self.visit_colname is not None:
                 if self.cense_numerator is None:
