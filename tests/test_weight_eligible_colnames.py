@@ -8,9 +8,7 @@ def _nobs_per_arm(weight_eligible_colnames):
     data = load_data("SEQdata")
     # Balanced 0/1 eligibility indicator carried through expansion.
     median_n = data["N"].median()
-    data = data.with_columns(
-        (pl.col("N") > median_n).cast(pl.Int32).alias("welig")
-    )
+    data = data.with_columns((pl.col("N") > median_n).cast(pl.Int32).alias("welig"))
     s = SEQuential(
         data,
         id_col="ID",
