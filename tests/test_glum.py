@@ -216,6 +216,101 @@ def test_glum_warm_start_matches_cold_start_outcome_coefs(monkeypatch):
         assert w == approx(c, rel=1e-2, abs=1e-4)
 
 
+def test_glum_design_cache_avoids_reparsing_on_bootstrap(monkeypatch):
+    # The main fit calls patsy.dmatrices to build the design info; every
+    # bootstrap replicate should hit the cache and reuse it via
+    # patsy.build_design_matrices instead of re-parsing the formula.
+    import patsy
+
+    import pySEQTarget.helpers._glum_fit as glm_mod
+
+    real_dmatrices = patsy.dmatrices
+    real_build = patsy.build_design_matrices
+    parsed_formulas = []
+    build_calls = [0]
+
+    def spy_dmatrices(formula, *a, **kw):
+        parsed_formulas.append(formula)
+        return real_dmatrices(formula, *a, **kw)
+
+    def spy_build(*a, **kw):
+        build_calls[0] += 1
+        return real_build(*a, **kw)
+
+    monkeypatch.setattr(glm_mod.patsy, "dmatrices", spy_dmatrices)
+    monkeypatch.setattr(glm_mod.patsy, "build_design_matrices", spy_build)
+
+    data = load_data("SEQdata")
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(glm_package="glum", bootstrap_nboot=3, seed=42),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+
+    # ITT has no weight models, so the only formula reaching _fit_glum is the
+    # outcome formula. It must be parsed exactly once (the main fit); the three
+    # bootstrap replicates must reuse the cached dinfo via build_design_matrices.
+    outcome_formula = f"{s.outcome_col} ~ {s.covariates}"
+    assert parsed_formulas.count(outcome_formula) == 1
+    assert build_calls[0] >= 3
+    # The cache survives onto self for inspection / future replicates.
+    assert outcome_formula in s._patsy_design_cache
+
+
+def _run_bootstrap_outcome_coefs_with_cache_disabled(monkeypatch):
+    """Run a small bootstrap fit with the design cache forcibly disabled."""
+    import pySEQTarget.helpers._glum_fit as glm_mod
+
+    original = glm_mod._fit_glum
+
+    def patched(*args, **kwargs):
+        kwargs["design_cache"] = None
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(glm_mod, "_fit_glum", patched)
+
+    data = load_data("SEQdata")
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(glm_package="glum", bootstrap_nboot=3, seed=42),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    return [list(m["outcome"].params.values) for m in s.outcome_model]
+
+
+def test_glum_design_cache_matches_no_cache_outcome_coefs(monkeypatch):
+    # The design cache freezes the categorical column structure to the main
+    # fit's columns. On SEQdata both arms appear in every bootstrap resample, so
+    # a no-cache run encodes the same columns from scratch each time and must
+    # converge to the same coefficients (within glum's tolerance).
+    cached = _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start=False)
+    no_cache = _run_bootstrap_outcome_coefs_with_cache_disabled(monkeypatch)
+
+    assert len(cached) == len(no_cache)
+    for c, nc in zip(cached, no_cache):
+        assert c == approx(nc, rel=1e-2, abs=1e-4)
+
+
 def test_glum_warm_start_dropped_when_design_columns_mismatch():
     # The defensive guard in _fit_glum: a (values, names) tuple whose names
     # don't line up with the patsy design matrix must be ignored, falling back

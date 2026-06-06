@@ -102,7 +102,7 @@ class _GlumFit:
         return smry
 
 
-def _fit_glum(formula, data, var_weights=None, start_params=None):
+def _fit_glum(formula, data, var_weights=None, start_params=None, design_cache=None):
     """Fit a binomial GLM with glum and return a _GlumFit wrapper.
 
     ``start_params`` is the cached ``(values, names)`` tuple from a previous fit,
@@ -111,8 +111,25 @@ def _fit_glum(formula, data, var_weights=None, start_params=None):
     can drop a categorical level and shift the column structure, in which case
     the cached coefs are meaningless and using them as init would derail the
     coordinate-descent solver.
+
+    ``design_cache`` is an optional ``dict`` keyed by ``formula``. On a hit, the
+    formula parse and patsy model.frame construction are skipped and the cached
+    ``(y_design_info, X_design_info)`` are re-applied to ``data`` via
+    ``patsy.build_design_matrices``. On a miss, ``patsy.dmatrices`` parses the
+    formula and the result is stored. Caching freezes the categorical encoding
+    to the main fit's column structure, which also makes the warm-start
+    guarantee trivially satisfied for every replicate.
     """
-    y_mat, X_mat = patsy.dmatrices(formula, data, return_type="dataframe")
+    if design_cache is not None and formula in design_cache:
+        y_dinfo, x_dinfo = design_cache[formula]
+        y_mat, X_mat = patsy.build_design_matrices(
+            [y_dinfo, x_dinfo], data, return_type="dataframe"
+        )
+    else:
+        y_mat, X_mat = patsy.dmatrices(formula, data, return_type="dataframe")
+        if design_cache is not None:
+            design_cache[formula] = (y_mat.design_info, X_mat.design_info)
+
     y_arr = y_mat.values.ravel()
     design_info = X_mat.design_info
     feature_names = list(X_mat.columns)  # "Intercept" first, then predictors
