@@ -37,9 +37,7 @@ def _prepare_boot_data(self, data, boot_id):
         ).alias(self.id_col)
     else:
         new_id = (
-            pl.col(self.id_col).cast(pl.Utf8)
-            + "_"
-            + pl.col("replicate").cast(pl.Utf8)
+            pl.col(self.id_col).cast(pl.Utf8) + "_" + pl.col("replicate").cast(pl.Utf8)
         ).alias(self.id_col)
 
     bootstrapped = (

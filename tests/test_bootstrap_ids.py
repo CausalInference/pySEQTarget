@@ -1,4 +1,5 @@
 """Behavioural tests for the integer-ID bootstrap path."""
+
 import polars as pl
 
 from pySEQTarget import SEQopts, SEQuential
@@ -65,6 +66,7 @@ def test_bootstrap_id_falls_back_to_string_concat_for_non_int_ids():
     # the join lines up
     s.DT = s.DT.with_columns(pl.col("ID").cast(pl.Utf8))
     from collections import Counter
+
     s._boot_samples = [
         Counter({str(k): v for k, v in c.items()}) for c in s._boot_samples
     ]
