@@ -141,3 +141,103 @@ def test_glum_bootstrap_survival_matches_statsmodels():
         return rd["Risk Difference"].to_list()
 
     assert risk_diff("glum") == approx(risk_diff("statsmodels"), rel=1e-2, abs=2e-3)
+
+
+def _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start):
+    """Run a small bootstrap fit with glum and return each replicate's outcome coefs."""
+    import pySEQTarget.helpers._glum_fit as glm_mod
+
+    if disable_warm_start:
+        original = glm_mod._fit_glum
+
+        def patched(*args, **kwargs):
+            kwargs["start_params"] = None
+            return original(*args, **kwargs)
+        monkeypatch.setattr(glm_mod, "_fit_glum", patched)
+
+    data = load_data("SEQdata")
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(glm_package="glum", bootstrap_nboot=3, seed=42),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    return [list(m["outcome"].params.values) for m in s.outcome_model]
+
+
+def test_glum_warm_start_is_wired_through_bootstrap(monkeypatch):
+    # The main fit gets start_params=None (cold); every bootstrap replicate gets
+    # the cached (values, names) tuple. Capture start_params on each call to
+    # _fit_glum and assert the wiring.
+    import pySEQTarget.helpers._glum_fit as glm_mod
+
+    seen = []
+    original = glm_mod._fit_glum
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("start_params"))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(glm_mod, "_fit_glum", spy)
+
+    _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start=False)
+
+    assert len(seen) >= 4  # main + 3 bootstrap replicates
+    assert seen[0] is None  # main fit: cold start
+    for sp in seen[1:]:
+        assert sp is not None
+        values, names = sp
+        assert len(values) == len(names)
+        assert names[0] == "Intercept"
+
+
+def test_glum_warm_start_matches_cold_start_outcome_coefs(monkeypatch):
+    # Warm-start is a pure convergence optimisation: it must reach the same
+    # optimum as a cold start. Compare per-replicate outcome coefficients with
+    # warm-start enabled (default) vs forcibly disabled.
+    warm = _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start=False)
+    cold = _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start=True)
+
+    # Both runs reach an optimum within glum's coordinate-descent tolerance, but
+    # the warm-start path stops at a point a few iterations earlier and so
+    # differs from the cold-start path within that tolerance. A genuine wiring
+    # regression would shift coefficients by several percent or more.
+    assert len(warm) == len(cold)
+    for w, c in zip(warm, cold):
+        assert w == approx(c, rel=1e-2, abs=1e-4)
+
+
+def test_glum_warm_start_dropped_when_design_columns_mismatch():
+    # The defensive guard in _fit_glum: a (values, names) tuple whose names
+    # don't line up with the patsy design matrix must be ignored, falling back
+    # to the cold-start init and producing the same fit as start_params=None.
+    import numpy as np
+    import pandas as pd
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 1000
+    df = pd.DataFrame(
+        {
+            "x1": rng.standard_normal(n),
+            "x2": rng.standard_normal(n),
+            "y": (rng.random(n) < 0.4).astype(int),
+        }
+    )
+
+    ref = _fit_glum("y ~ x1 + x2", df)
+    bogus = (np.zeros(5), ["Intercept", "wrong", "names", "here", "extra"])
+    bogus_fit = _fit_glum("y ~ x1 + x2", df, start_params=bogus)
+
+    assert list(bogus_fit.params.values) == approx(
+        list(ref.params.values), rel=1e-8, abs=1e-12
+    )

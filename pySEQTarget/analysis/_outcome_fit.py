@@ -130,7 +130,12 @@ def _outcome_fit(
         case "glum":
             from ..helpers._glum_fit import _fit_glum
 
-            return _fit_glum(full_formula, df_pd, var_weights=var_weights)
+            return _fit_glum(
+                full_formula,
+                df_pd,
+                var_weights=var_weights,
+                start_params=start_params,
+            )
 
         case "jax":
             from ..helpers._jax_fit import _fit_jax

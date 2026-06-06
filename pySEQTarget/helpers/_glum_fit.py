@@ -102,8 +102,16 @@ class _GlumFit:
         return smry
 
 
-def _fit_glum(formula, data, var_weights=None):
-    """Fit a binomial GLM with glum and return a _GlumFit wrapper."""
+def _fit_glum(formula, data, var_weights=None, start_params=None):
+    """Fit a binomial GLM with glum and return a _GlumFit wrapper.
+
+    ``start_params`` is the cached ``(values, names)`` tuple from a previous fit,
+    used as a warm-start in the bootstrap loop. It is only honoured when the
+    design matrix columns line up exactly with ``names`` - a bootstrap resample
+    can drop a categorical level and shift the column structure, in which case
+    the cached coefs are meaningless and using them as init would derail the
+    coordinate-descent solver.
+    """
     y_mat, X_mat = patsy.dmatrices(formula, data, return_type="dataframe")
     y_arr = y_mat.values.ravel()
     design_info = X_mat.design_info
@@ -111,7 +119,15 @@ def _fit_glum(formula, data, var_weights=None):
     X_design = X_mat.values  # includes intercept column (for covariance)
     X_arr = X_mat.drop(columns=["Intercept"]).values
 
-    glm = GeneralizedLinearRegressor(family="binomial", fit_intercept=True)
+    init = None
+    if start_params is not None:
+        sp_values, sp_names = start_params
+        if list(sp_names) == feature_names:
+            init = np.asarray(sp_values, dtype=float)
+
+    glm = GeneralizedLinearRegressor(
+        family="binomial", fit_intercept=True, start_params=init
+    )
 
     sample_weight = None
     fit_kwargs = {}
