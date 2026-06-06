@@ -5,6 +5,26 @@ import pandas as pd
 import patsy
 from glum import GeneralizedLinearRegressor
 
+from ._fix_categories import _fix_categories_for_predict
+
+
+def _align_categories(design_info, data):
+    """
+    Re-align ``data``'s categorical columns to the level set and ORDER frozen
+    in ``design_info``. Wraps ``_fix_categories_for_predict`` (which expects a
+    model-like object) so the cached design info can be re-applied to a
+    bootstrap resample whose categoricals materialised in a different order.
+    """
+
+    class _Stub:
+        class model:
+            class data:
+                pass
+
+    stub = _Stub()
+    stub.model.data.design_info = design_info
+    return _fix_categories_for_predict(stub, data)
+
 
 class _GlumFit:
     """
@@ -122,9 +142,21 @@ def _fit_glum(formula, data, var_weights=None, start_params=None, design_cache=N
     """
     if design_cache is not None and formula in design_cache:
         y_dinfo, x_dinfo = design_cache[formula]
-        y_mat, X_mat = patsy.build_design_matrices(
-            [y_dinfo, x_dinfo], data, return_type="dataframe"
-        )
+        try:
+            y_mat, X_mat = patsy.build_design_matrices(
+                [y_dinfo, x_dinfo], data, return_type="dataframe"
+            )
+        except patsy.PatsyError as e:
+            if "mismatching levels" not in str(e):
+                raise
+            # A bootstrap resample can realise the same categorical levels in a
+            # different ORDER than the cached design_info froze. Re-align the
+            # categories to the cached structure and retry, so the cached column
+            # layout (and the warm-start that relies on it) stays valid.
+            data = _align_categories(x_dinfo, data.copy())
+            y_mat, X_mat = patsy.build_design_matrices(
+                [y_dinfo, x_dinfo], data, return_type="dataframe"
+            )
     else:
         y_mat, X_mat = patsy.dmatrices(formula, data, return_type="dataframe")
         if design_cache is not None:

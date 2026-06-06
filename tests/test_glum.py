@@ -312,6 +312,52 @@ def test_glum_design_cache_matches_no_cache_outcome_coefs(monkeypatch):
         assert c == approx(nc, rel=1e-2, abs=1e-4)
 
 
+def test_glum_design_cache_handles_categorical_level_reordering():
+    # A bootstrap resample can realise the same categorical levels in a
+    # different ORDER than the cached design_info froze (e.g. polars->pandas
+    # appearance order on the full data vs sorted order on a resample). The
+    # cached build_design_matrices path must re-align the categories instead of
+    # raising "mismatching levels". Regression for the short-course render.
+    import numpy as np
+    import pandas as pd
+
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 2000
+    levels = ["16-29", "30-39", "40-49", "50+"]
+    formula = "y ~ age_grp + x"
+    cache = {}
+
+    # Main fit: categories in a NON-sorted order; this freezes the cache.
+    main = pd.DataFrame(
+        {
+            "age_grp": pd.Categorical(
+                rng.choice(levels, n), categories=["30-39", "16-29", "40-49", "50+"]
+            ),
+            "x": rng.standard_normal(n),
+            "y": (rng.random(n) < 0.4).astype(int),
+        }
+    )
+    m = _fit_glum(formula, main, design_cache=cache)
+
+    # Bootstrap: same levels, sorted order — the crash trigger.
+    boot = pd.DataFrame(
+        {
+            "age_grp": pd.Categorical(
+                rng.choice(levels, n), categories=["16-29", "30-39", "40-49", "50+"]
+            ),
+            "x": rng.standard_normal(n),
+            "y": (rng.random(n) < 0.4).astype(int),
+        }
+    )
+    mb = _fit_glum(formula, boot, design_cache=cache)
+
+    assert np.all(np.isfinite(mb.params.values))
+    # The cached column structure is preserved (categories re-aligned, not reparsed).
+    assert list(mb.params.index) == list(m.params.index)
+
+
 def test_glum_warm_start_dropped_when_design_columns_mismatch():
     # The defensive guard in _fit_glum: a (values, names) tuple whose names
     # don't line up with the patsy design matrix must be ignored, falling back
