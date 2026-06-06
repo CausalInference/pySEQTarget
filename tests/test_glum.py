@@ -153,6 +153,7 @@ def _run_bootstrap_glum_outcome_coefs(monkeypatch, disable_warm_start):
         def patched(*args, **kwargs):
             kwargs["start_params"] = None
             return original(*args, **kwargs)
+
         monkeypatch.setattr(glm_mod, "_fit_glum", patched)
 
     data = load_data("SEQdata")
@@ -317,6 +318,7 @@ def test_glum_warm_start_dropped_when_design_columns_mismatch():
     # to the cold-start init and producing the same fit as start_params=None.
     import numpy as np
     import pandas as pd
+
     from pySEQTarget.helpers._glum_fit import _fit_glum
 
     rng = np.random.default_rng(0)
