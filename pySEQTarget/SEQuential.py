@@ -172,10 +172,6 @@ class SEQuential:
                     self.cense_denominator,
                 ]
             ).union(kept),
-        ).with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-
-        self.data = self.data.with_columns(
-            pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col)
         )
 
         if self.verbose:

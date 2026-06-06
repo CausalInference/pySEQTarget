@@ -18,18 +18,36 @@ def _prepare_boot_data(self, data, boot_id):
         {self.id_col: list(id_counts.keys()), "count": list(id_counts.values())}
     )
 
+    # Build a per-row unique ID for the resampled frame. With an integer-typed
+    # ID column do this in integer arithmetic (orig_id * id_mult + replicate)
+    # rather than the old string-concat form ("{orig_id}_{replicate}"), since
+    # string IDs make every downstream join/groupby ~3-5x slower. id_mult is
+    # the max count seen this iteration plus one, so the (orig_id, replicate)
+    # pair maps to a unique int64 with room. Falls back to string concat for
+    # non-integer ID columns (e.g. user-supplied string IDs).
+    id_is_int = data.schema[self.id_col].is_integer()
+    if id_is_int:
+        id_mult = (max(id_counts.values()) if id_counts else 1) + 1
+        # _weight_bind recovers orig_id with `id // id_mult` to join the
+        # bootstrap-resampled self.DT back to the un-resampled WDT, so the
+        # multiplier has to be discoverable downstream.
+        self._boot_id_mult = id_mult
+        new_id = (
+            pl.col(self.id_col).cast(pl.Int64) * id_mult + pl.col("replicate")
+        ).alias(self.id_col)
+    else:
+        new_id = (
+            pl.col(self.id_col).cast(pl.Utf8)
+            + "_"
+            + pl.col("replicate").cast(pl.Utf8)
+        ).alias(self.id_col)
+
     bootstrapped = (
         data.lazy()
         .join(counts.lazy(), on=self.id_col, how="inner")
         .with_columns(pl.int_ranges(0, pl.col("count")).alias("replicate"))
         .explode("replicate")
-        .with_columns(
-            (
-                pl.col(self.id_col).cast(pl.Utf8)
-                + "_"
-                + pl.col("replicate").cast(pl.Utf8)
-            ).alias(self.id_col)
-        )
+        .with_columns(new_id)
         .drop("count", "replicate")
         .collect()
     )
