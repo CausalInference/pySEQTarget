@@ -255,25 +255,30 @@ class SEQuential:
             boot_idx = self._current_boot_idx
 
         if self.weighted:
-            WDT = _weight_setup(self)
+            WDT_pl = _weight_setup(self)
             if not self.weight_preexpansion and not self.excused:
-                WDT = WDT.filter(pl.col("followup") > 0)
+                WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
 
-            WDT = WDT.to_pandas()
+            # The weight-fit helpers (_fit_LTFU etc.) use pandas-style indexing
+            # and pass pandas frames to glum/statsmodels, so we convert once.
+            # The fits don't mutate WDT_pd - they store models on `self` - so
+            # we keep the original polars frame for the downstream steps
+            # rather than paying a pl.from_pandas() round-trip per replicate.
+            WDT_pd = WDT_pl.to_pandas()
             for col in self.fixed_cols:
-                if col in WDT.columns:
-                    WDT[col] = WDT[col].astype("category")
+                if col in WDT_pd.columns:
+                    WDT_pd[col] = WDT_pd[col].astype("category")
 
-            _fit_LTFU(self, WDT)
-            _fit_visit(self, WDT)
-            _fit_numerator(self, WDT)
-            _fit_denominator(self, WDT)
+            _fit_LTFU(self, WDT_pd)
+            _fit_visit(self, WDT_pd)
+            _fit_numerator(self, WDT_pd)
+            _fit_denominator(self, WDT_pd)
 
             if self.offload:
                 _offload_weights(self, boot_idx)
 
-            WDT = pl.from_pandas(WDT)
-            WDT = _weight_predict(self, WDT)
+            del WDT_pd
+            WDT = _weight_predict(self, WDT_pl)
             _weight_bind(self, WDT)
             self.weight_stats = _weight_stats(self)
 
