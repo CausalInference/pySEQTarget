@@ -14,8 +14,7 @@ class _JaxFit:
         formula,
         df,
         var_weights=None,
-        learning_rate=0.1,
-        num_epochs=2000,
+        max_iter=25,
         start_params=None,
     ):
         df_pd = df.to_pandas() if isinstance(df, pl.DataFrame) else df
@@ -38,8 +37,7 @@ class _JaxFit:
             self._sample_weight = np.asarray(var_weights, dtype=float)
 
         jax_model = MultinomialLogisticRegression(
-            learning_rate=learning_rate,
-            num_epochs=num_epochs,
+            max_iter=max_iter,
             n_classes=self._n_classes,
         )
         
@@ -62,10 +60,8 @@ class _JaxFit:
 
     def _coef_components(self):
         W, b = self._jax.params
-        W = np.asarray(W)
-        b = np.asarray(b)
-        coef = W[:, 1:] - W[:, :1]
-        intercept = b[1:] - b[0]
+        coef = np.asarray(W)
+        intercept = np.asarray(b)
         mean = np.asarray(self._jax.mean_)
         std = np.asarray(self._jax.std_)
         intercept = intercept - (coef * (mean / std)[:, None]).sum(axis=0)
@@ -97,12 +93,13 @@ class _JaxFit:
         coef = sp_values[1:]
         if coef.shape[0] != n_features:
             return None
-        W = np.zeros((n_features, 2))
-        b = np.zeros(2)
+        
+        W = np.zeros((n_features, 1))
+        b = np.zeros(1)
         mean = np.asarray(self._jax.mean_)
         std = np.asarray(self._jax.std_)
-        W[:, 1] = coef * std
-        b[1] = intercept + float(np.sum(coef * mean))
+        W[:, 0] = coef * std
+        b[0] = intercept + float(np.sum(coef * mean))
 
         return (W, b)
 

@@ -99,7 +99,7 @@ def test_jax_multinomial_label_detection():
     x = rng.normal(size=n)
     df = pd.DataFrame({"y": rng.integers(0, 3, size=n), "x": x})
 
-    model = _JaxFit("y ~ x", df, num_epochs=300)
+    model = _JaxFit("y ~ x", df)
     assert list(model.classes_) == [0, 1, 2]
 
     probs = model.predict(df)

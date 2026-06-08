@@ -2,6 +2,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+from jax.flatten_util import ravel_pytree
 
 
 class MultinomialLogisticRegression:
@@ -9,9 +10,9 @@ class MultinomialLogisticRegression:
     Multinomial logistic regression in JAX.
     """
 
-    def __init__(self, learning_rate=0.1, num_epochs=2000, eps=1e-7, n_classes=None):
-        self.learning_rate = learning_rate
-        self.num_epochs = num_epochs
+    def __init__(self, max_iter=25, ridge=1e-8, eps=1e-7, n_classes=None):
+        self.max_iter = max_iter
+        self.ridge = ridge  # tiny Hessian jitter for numerical stability
         self.eps = eps
         self.n_classes = n_classes
         self.params = None
@@ -27,44 +28,44 @@ class MultinomialLogisticRegression:
         return X
 
     @staticmethod
-    def _predict(params, X):
+    def _logits(params, X):
         W, b = params
-        return jax.nn.softmax(jnp.dot(X, W) + b, axis=-1)
+        z = jnp.dot(X, W) + b
+        return jnp.concatenate([jnp.zeros((z.shape[0], 1)), z], axis=1)
+
+    @staticmethod
+    def _predict(params, X):
+        return jax.nn.softmax(MultinomialLogisticRegression._logits(params, X), axis=-1)
 
     @staticmethod
     @jax.jit
     def _loss(params, X, Y, w):
-        """Sample-weighted mean softmax cross-entropy; ``w`` is ``(n_samples,)``."""
-        W, b = params
-        logp = jax.nn.log_softmax(jnp.dot(X, W) + b, axis=-1)
+        logp = jax.nn.log_softmax(
+            MultinomialLogisticRegression._logits(params, X), axis=-1
+        )
         ce = -jnp.sum(Y * logp, axis=-1)
         return jnp.sum(w * ce) / jnp.sum(w)
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(4, 5))
-    def _run(params, X, Y, w, num_epochs, learning_rate):
-        b1, b2, eps = 0.9, 0.999, 1e-8
-        W0, b0 = params
-        zeros = (jnp.zeros_like(W0), jnp.zeros_like(b0))
+    @partial(jax.jit, static_argnums=(4,))
+    def _run(params, X, Y, w, max_iter, ridge):
+        flat0, unravel = ravel_pytree(params)
+        eye = jnp.eye(flat0.shape[0])
 
-        def step(carry, t):
-            # ADAM
-            params, (mW, mb), (vW, vb) = carry
-            dW, db = jax.grad(MultinomialLogisticRegression._loss)(params, X, Y, w)
-            mW, vW = b1 * mW + (1 - b1) * dW, b2 * vW + (1 - b2) * dW ** 2
-            mb, vb = b1 * mb + (1 - b1) * db, b2 * vb + (1 - b2) * db ** 2
-            mWh, vWh = mW / (1 - b1 ** t), vW / (1 - b2 ** t)
-            mbh, vbh = mb / (1 - b1 ** t), vb / (1 - b2 ** t)
-            W, b = params
-            W = W - learning_rate * mWh / (jnp.sqrt(vWh) + eps)
-            b = b - learning_rate * mbh / (jnp.sqrt(vbh) + eps)
-            params = (W, b)
-            loss = MultinomialLogisticRegression._loss(params, X, Y, w)
-            return (params, (mW, mb), (vW, vb)), loss
+        def loss_flat(f):
+            return MultinomialLogisticRegression._loss(unravel(f), X, Y, w)
 
-        ts = jnp.arange(1, num_epochs + 1, dtype=float)
-        (params, _, _), loss_history = jax.lax.scan(step, (params, zeros, zeros), ts)
-        return params, loss_history
+        grad_fn = jax.grad(loss_flat)
+        hess_fn = jax.hessian(loss_flat)
+
+        def step(f, _):
+            g = grad_fn(f)
+            H = hess_fn(f)
+            f = f - jnp.linalg.solve(H + ridge * eye, g)
+            return f, loss_flat(f)
+
+        flat, loss_history = jax.lax.scan(step, flat0, xs=None, length=max_iter)
+        return unravel(flat), loss_history
 
     def fit(self, X, y, sample_weight=None, init_params=None):
         X = self._prep(X)
@@ -77,18 +78,18 @@ class MultinomialLogisticRegression:
         else:
             w = jnp.asarray(sample_weight, dtype=float)
         if init_params is None:
-            params = (jnp.zeros((X.shape[1], K)), jnp.zeros(K))
+            params = (jnp.zeros((X.shape[1], K - 1)), jnp.zeros(K - 1))
         else:
             W, b = init_params
             W = jnp.asarray(W, dtype=float)
             b = jnp.asarray(b, dtype=float)
-            if W.shape != (X.shape[1], K):
+            if W.shape != (X.shape[1], K - 1):
                 raise ValueError(
-                    f"init_params W has shape {W.shape}, expected ({X.shape[1]}, {K})."
+                    f"init_params W has shape {W.shape}, expected ({X.shape[1]}, {K - 1})."
                 )
             params = (W, b)
         self.params, self.loss_history_ = self._run(
-            params, X, Y, w, self.num_epochs, self.learning_rate
+            params, X, Y, w, self.max_iter, self.ridge
         )
         return self
 
