@@ -92,7 +92,7 @@ def test_glum_summary_is_printable_and_consistent():
     smry = model.summary()
     assert str(smry)  # renders without error
 
-    coef_col = model.summary2().tables[1]["Coef."].to_list()
+    coef_col = model.summary().tables[1]["Coef."].to_list()
     assert coef_col == approx(list(model.params), rel=1e-9, abs=1e-9)
 
 

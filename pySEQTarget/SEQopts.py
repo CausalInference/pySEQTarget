@@ -10,113 +10,63 @@ class SEQopts:
     Parameter builder for ``pySEQTarget.SEQuential`` analysis
 
     :param bootstrap_nboot: Number of bootstraps to perform
-    :type bootstrap_nboot: int
     :param bootstrap_sample: Subsampling proportion of ID-Trials gathered for each bootstrapping iteration
-    :type bootstrap_sample: float
     :param bootstrap_CI: If bootstrapped, confidence interval level
-    :type bootstrap_CI: float
     :param bootstrap_CI_method: If bootstrapped, confidence interval method ['SE' or 'percentile']
-    :type bootstrap_CI_method: str
     :param cense_colname: Column name for censoring effect (LTFU, etc.)
-    :type cense_colname: str
     :param cense_denominator: Override to specify denominator patsy formula for
         censoring models; "1" or "" indicate intercept only model
-    :type cense_denominator: Optional[str] or None
     :param cense_numerator: Override to specify numerator patsy formula for censoring models
-    :type cense_numerator: Optional[str] or None
     :param cense_eligible_colname: Column name to identify which rows are eligible for censoring model fitting
-    :type cense_eligible_colname: Optional[str] or None
     :param compevent_colname: Column name specifying a competing event to the outcome
-    :type compevent_colname: str
     :param covariates: Override to specify the outcome patsy formula for outcome model fitting
-    :type covariates: Optional[str] or None
     :param denominator: Override to specify the outcome patsy formula for denominator model fitting
-    :type denominator: Optional[str] or None
     :param excused: Boolean to allow excused conditions when method is censoring
-    :type excused: bool
     :param excused_colnames: Column names (at the same length of treatment_level) specifying excused conditions, default ``[]``
-    :type excused_colnames: List[str]
     :param expand_only: If True, ``SEQuential.expand()`` returns the expanded dataset and skips weighting,
         modelling, and survival steps
-    :type expand_only: bool
+    :param glm_package: Backend for fitting logistic (outcome/competing-event) models ["statsmodels", "glum", or "jax"], default "statsmodels".
     :param followup_class: Boolean to force followup values to be treated as classes
-    :type followup_class: bool
     :param followup_include: Boolean to force regular followup values into model covariates
-    :type followup_include: bool
     :param followup_spline: Boolean to force followup values to be fit to cubic spline
-    :type followup_spline: bool
     :param followup_spline_df: Degrees of freedom for the followup cubic spline, default ``4``
-    :type followup_spline_df: int
     :param followup_max: Maximum allowed followup in analysis
-    :type followup_max: int or None
     :param followup_min: Minimum allowed followup in analysis
-    :type followup_min: int
     :param hazard_estimate: Boolean to create hazard estimates
-    :type hazard_estimate: bool
     :param indicator_baseline: How to indicate baseline columns in models
-    :type indicator_baseline: str
     :param indicator_squared: How to indicate squared columns in models
-    :type indicator_squared: str
     :param km_curves: Boolean to create survival, risk, and incidence (if applicable) estimates
-    :type km_curves: bool
     :param ncores: Number of cores to use if running in parallel, default ``max(1, cpu_count() - 1)``
-    :type ncores: int
     :param numerator: Override to specify the outcome patsy formula for
         numerator models; "1" or "" indicate intercept only model
-    :type numerator: str
     :param offload: Boolean to offload intermediate model data to disk
-    :type offload: bool
     :param offload_dir: Directory to offload intermediate model data
-    :type offload_dir: str
     :param parallel: Boolean to run model fitting in parallel
-    :type parallel: bool
     :param plot_colors: List of colors for KM plots, if applicable, default ``["#F8766D", "#00BFC4", "#555555"]``
-    :type plot_colors: List[str]
     :param plot_labels: List of length treat_level to specify treatment labeling, default ``[]``
-    :type plot_labels: List[str]
     :param plot_title: Plot title
-    :type plot_title: str
     :param plot_type: Type of plot to show ["risk", "survival" or "incidence" if compevent is specified]
-    :type plot_type: str
     :param risk_times: Followup times at which to report risk difference and risk ratio when ``km_curves = True``.
         Each requested time is snapped to the latest available followup at or before it, and the maximum
         followup is always included. Defaults to ``None`` (report at the maximum followup only).
-    :type risk_times: Optional[List[float]] or None
     :param seed: RNG seed
-    :type seed: int
     :param selection_first_trial: Boolean to only use first trial for analysis (similar to non-expanded)
-    :type selection_first_trial: bool
     :param selection_sample: Subsampling proportion of ID-trials which did not initiate a treatment
-    :type selection_sample: float
     :param selection_random: Boolean to randomly downsample ID-trials which did not initiate a treatment
-    :type selection_random: bool
     :param subgroup_colname: Column name for subgroups to share the same weighting but different outcome model fits
-    :type subgroup_colname: str
     :param treatment_level: List of eligible treatment levels within treatment_col, default ``[0, 1]``
-    :type treatment_level: List[int]
     :param trial_include: Boolean to force trial values into model covariates
-    :type trial_include: bool
     :param visit_colname: Column name specifying visit number
-    :type visit_colname: str
     :param weight_eligible_colnames: List of column names of length
         treatment_level to identify which rows are eligible for weight fitting, default ``[]``
-    :type weight_eligible_colnames: List[str]
     :param weight_fit_method: The fitting method to be used ["newton", "bfgs", "lbfgs", "nm"], default "newton"
-    :type weight_fit_method: str
     :param weight_min: Minimum weight
-    :type weight_min: float
     :param weight_max: Maximum weight
-    :type weight_max: float or None
     :param weight_lag_condition: Boolean to fit weights based on their treatment lag
-    :type weight_lag_condition: bool
     :param weight_p99: Boolean to force weight min and max to be 1st and 99th percentile respectively
-    :type weight_p99: bool
     :param weight_preexpansion: Boolean to fit weights on preexpanded data
-    :type weight_preexpansion: bool
     :param verbose: Boolean to print dataset size summaries and bootstrap information
-    :type verbose: bool
     :param weighted: Boolean to weight analysis
-    :type weighted: bool
     """
 
     bootstrap_nboot: int = 0
@@ -134,7 +84,7 @@ class SEQopts:
     excused: bool = False
     excused_colnames: List[str] = field(default_factory=lambda: [])
     expand_only: bool = False
-    glm_package: Literal["statsmodels", "glum"] = "statsmodels"
+    glm_package: Literal["statsmodels", "glum", "jax"] = "statsmodels"
     followup_class: bool = False
     followup_include: bool = True
     followup_max: int = None
@@ -233,8 +183,8 @@ class SEQopts:
             )
         if self.bootstrap_CI_method not in ["se", "percentile"]:
             raise ValueError("bootstrap_CI_method must be one of 'se' or 'percentile'")
-        if self.glm_package not in ["statsmodels", "glum"]:
-            raise ValueError("glm_package must be 'statsmodels' or 'glum'")
+        if self.glm_package not in ["statsmodels", "glum", "jax"]:
+            raise ValueError("glm_package must be 'statsmodels', 'glum', or 'jax'")
         if self.cox_package not in ["lifelines", "scikit-survival"]:
             raise ValueError("cox_package must be 'lifelines' or 'scikit-survival'")
 

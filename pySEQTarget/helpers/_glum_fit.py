@@ -12,7 +12,7 @@ class _GlumFit:
     the codebase (and users) expect:
       .params (Series), .model.exog_names, .model.data.design_info,
       .predict(df) / .predict(X_numpy, transform=False),
-      .bse, .summary(), .summary2().
+      .bse, .summary().
 
     Standard errors are derived lazily from the stored design matrix using the
     GLM asymptotic covariance (X' W X)^-1, which matches statsmodels for the
@@ -81,7 +81,7 @@ class _GlumFit:
             index=list(self.params.index),
         )
 
-    def summary2(self):
+    def summary(self):
         from statsmodels.iolib.summary2 import Summary
 
         info = pd.DataFrame(
@@ -100,9 +100,6 @@ class _GlumFit:
         smry.add_df(info, header=False)
         smry.add_df(self._coef_table())
         return smry
-
-    # statsmodels exposes both; the codebase/practical use either, so alias them.
-    summary = summary2
 
 
 def _fit_glum(formula, data, var_weights=None):

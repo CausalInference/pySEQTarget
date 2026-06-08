@@ -124,24 +124,29 @@ def _outcome_fit(
         )
 
     full_formula = f"{outcome} ~ {formula}"
+    var_weights = df_pd[weight_col] if weighted else None
 
-    if getattr(self, "glm_package", "statsmodels") == "glum":
-        from ..helpers._glum_fit import _fit_glum
+    match getattr(self, "glm_package", "statsmodels"):
+        case "glum":
+            from ..helpers._glum_fit import _fit_glum
+            return _fit_glum(full_formula, df_pd, var_weights=var_weights)
 
-        return _fit_glum(
-            full_formula,
-            df_pd,
-            var_weights=df_pd[weight_col] if weighted else None,
-        )
-
+        case "jax":
+            from ..helpers._jax_fit import _fit_jax
+            return _fit_jax(
+                full_formula,
+                df_pd,
+                var_weights=var_weights,
+                start_params=start_params,
+            )
+    # default
     glm_kwargs = {
         "formula": full_formula,
         "data": df_pd,
         "family": sm.families.Binomial(),
     }
-
-    if weighted:
-        glm_kwargs["var_weights"] = df_pd[weight_col]
+    if var_weights is not None:
+        glm_kwargs["var_weights"] = var_weights
 
     model = smf.glm(**glm_kwargs)
 

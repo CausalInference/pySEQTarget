@@ -52,6 +52,14 @@ output = [
     "weasyprint",
     "tabulate"
 ]
+gpu = [
+    "jax[cuda12]; sys_platform == 'linux'",
+    "jax; sys_platform != 'linux'",
+]
+dev = [
+    "pySEQTarget[output,gpu]",
+    "pytest",
+]
 
 [project.urls]
 Homepage = "https://github.com/CausalInference/pySEQTarget"

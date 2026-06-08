@@ -29,23 +29,14 @@ class SEQuential:
     Primary class initializer for SEQuentially nested target trial emulation
 
     :param data: Data for analysis
-    :type data: pl.DataFrame
     :param id_col: Column name for unique patient IDs
-    :type id_col: str
     :param time_col: Column name for observational time points
-    :type time_col: str
     :param eligible_col: Column name for analytical eligibility
-    :type eligible_col: str
     :param treatment_col: Column name specifying treatment per time_col
-    :type treatment_col: str
     :param outcome_col: Column name specifying outcome per time_col
-    :type outcome_col: str
     :param time_varying_cols: Time-varying column names as covariates (BMI, Age, etc.)
-    :type time_varying_cols: Optional[List[str]] or None
     :param fixed_cols: Fixed column names as covariates (Sex, YOB, etc.)
-    :type fixed_cols: Optional[List[str]] or None
     :param method: Method for analysis ['ITT', 'dose-response', or 'censoring']
-    :type method: str
     :param parameters: Parameters to augment analysis, specified with ``pySEQTarget.SEQopts``
     :type parameters: Optional[SEQopts] or None
     """
