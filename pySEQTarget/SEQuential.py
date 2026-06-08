@@ -25,6 +25,11 @@ from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
                         _weight_predict, _weight_setup, _weight_stats)
 
 
+# Default seed used when the user supplies none, so an unseeded run is
+# deterministic across processes (matching SEQTaRget's capture of .Random.seed).
+_DEFAULT_SEED = 0
+
+
 class SEQuential:
     """
     Primary class initializer for SEQuentially nested target trial emulation
@@ -73,9 +78,18 @@ class SEQuential:
         for name, value in asdict(parameters).items():
             setattr(self, name, value)
 
-        self._rng = (
-            np.random.RandomState(self.seed) if self.seed is not None else np.random
-        )
+        # Mirror SEQTaRget (R): always pin a concrete seed so the Monte-Carlo
+        # hazard simulation is reseeded before each run and is reproducible.
+        # R captures .Random.seed when none is given, which is fixed in a fresh
+        # process, so an unseeded R run is deterministic across runs. We match
+        # that with a fixed default seed rather than falling back to the global,
+        # never-reseeded np.random — which let hazard estimates change silently
+        # between otherwise identical runs.
+        if self.seed is None:
+            self.seed = _DEFAULT_SEED
+            if self.verbose:
+                print(f"No seed supplied; using default seed {self.seed}")
+        self._rng = np.random.RandomState(self.seed)
 
         self._offloader = Offloader(enabled=self.offload, dir=self.offload_dir)
 

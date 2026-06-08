@@ -23,6 +23,57 @@ def _make_seq(seed, **extra_opts):
     )
 
 
+def test_unseeded_run_assigns_stable_concrete_seed():
+    # With no seed, the hazard simulation must not fall back to the global,
+    # never-reseeded np.random. Instead a concrete seed is drawn once, recorded
+    # on self.seed, and held fixed for the life of the object so the seed is the
+    # same before and after a run (and can be reported to reproduce it).
+    s = _make_seq(seed=None, hazard_estimate=True)
+
+    before = s.seed
+    assert before is not None
+    assert isinstance(before, int)
+    assert 0 <= before < 2**32
+    assert isinstance(s._rng, np.random.RandomState)
+
+    s.expand()
+    s.fit()
+    s.hazard()
+
+    assert s.seed == before
+
+
+def test_two_unseeded_runs_are_deterministic():
+    # With no seed supplied, runs use a fixed default seed (mirroring R), so two
+    # otherwise identical unseeded runs produce the same hazard ratio.
+    results = []
+    for _ in range(2):
+        s = _make_seq(seed=None, hazard_estimate=True)
+        s.expand()
+        s.fit()
+        s.hazard()
+        results.append(s.hazard_ratio["Hazard ratio"][0])
+
+    assert results[0] == results[1]
+
+
+def test_unseeded_captured_seed_reproduces_hazard():
+    # The seed recorded on an unseeded run is the one actually used, so feeding
+    # it back as an explicit seed reproduces the hazard ratio exactly.
+    s1 = _make_seq(seed=None, hazard_estimate=True)
+    captured = s1.seed
+    s1.expand()
+    s1.fit()
+    s1.hazard()
+
+    s2 = _make_seq(seed=captured, hazard_estimate=True)
+    s2.expand()
+    s2.fit()
+    s2.hazard()
+
+    assert s1.hazard_ratio["Hazard ratio"][0] == s2.hazard_ratio["Hazard ratio"][0]
+
+
 def test_hazard_reproducible_with_seed():
     results = []
     for _ in range(2):
