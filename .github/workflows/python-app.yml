@@ -30,7 +30,7 @@ jobs:
       run: |
         uv venv --python ${{ matrix.python-version }}
         uv pip install flake8 pytest pytest-cov
-        uv pip install -e ".[dev]"
+        uv pip install -e .
 
     - name: Lint with flake8
       run: |
