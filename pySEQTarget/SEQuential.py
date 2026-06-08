@@ -24,7 +24,6 @@ from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
                         _fit_visit, _offload_weights, _weight_bind,
                         _weight_predict, _weight_setup, _weight_stats)
 
-
 # Default seed used when the user supplies none, so an unseeded run is
 # deterministic across processes (matching SEQTaRget's capture of .Random.seed).
 _DEFAULT_SEED = 0
