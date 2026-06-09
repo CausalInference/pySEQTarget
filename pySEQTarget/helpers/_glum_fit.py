@@ -40,21 +40,69 @@ class _GlumFit:
     just like statsmodels keeps model.exog, so memory use is comparable.
     """
 
-    def __init__(self, glum_model, design_info, feature_names, X_design, sample_weight):
+    def __init__(
+        self,
+        glum_model,
+        design_info,
+        feature_names,
+        X_design,
+        sample_weight,
+        formula=None,
+        ref_frame=None,
+    ):
         self._glum = glum_model
         self._design_info = design_info
         self._X_design = X_design  # includes the intercept column
         self._sample_weight = sample_weight
+        # Inputs to rebuild ``design_info`` on unpickle: the patsy DesignInfo
+        # itself cannot be pickled (patsy #26), so we keep the formula and a
+        # tiny reference frame (which preserves each categorical column's full,
+        # ordered dtype categories) and re-parse on __setstate__.
+        self._formula = formula
+        self._ref_frame = ref_frame
 
-        self.model = types.SimpleNamespace(
-            exog_names=feature_names,
-            data=types.SimpleNamespace(design_info=design_info),
-        )
+        self._build_model_namespace(design_info, feature_names)
         self.exog_names = feature_names
 
         # statsmodels convention: intercept first
         all_coefs = np.concatenate([[glum_model.intercept_], glum_model.coef_])
         self.params = pd.Series(all_coefs, index=feature_names)
+
+    def _build_model_namespace(self, design_info, feature_names):
+        self.model = types.SimpleNamespace(
+            exog_names=feature_names,
+            data=types.SimpleNamespace(design_info=design_info),
+        )
+
+    def __getstate__(self):
+        # Drop the unpicklable patsy DesignInfo and the SimpleNamespaces that
+        # reference it; __setstate__ rebuilds them from the formula + ref_frame.
+        state = self.__dict__.copy()
+        state.pop("_design_info", None)
+        state.pop("model", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if self._formula is None or self._ref_frame is None:
+            raise RuntimeError(
+                "Cannot unpickle _GlumFit fitted before formula/ref_frame were "
+                "recorded; refit with the current pySEQTarget version."
+            )
+        _, X_mat = patsy.dmatrices(
+            self._formula, self._ref_frame, return_type="dataframe"
+        )
+        if list(X_mat.columns) != list(self.exog_names):
+            # The reference frame's categorical ordering must reproduce the
+            # frozen column structure exactly, or glum's coefficients would be
+            # paired with the wrong design columns on predict. Fail loudly
+            # rather than return silently wrong predictions.
+            raise RuntimeError(
+                "_GlumFit design columns changed on unpickle: "
+                f"{list(X_mat.columns)} != {list(self.exog_names)}"
+            )
+        self._design_info = X_mat.design_info
+        self._build_model_namespace(self._design_info, self.exog_names)
 
     def predict(self, data, transform=True):
         if transform:
@@ -185,4 +233,19 @@ def _fit_glum(formula, data, var_weights=None, start_params=None, design_cache=N
         fit_kwargs["sample_weight"] = sample_weight
 
     glm.fit(X_arr, y_arr, **fit_kwargs)
-    return _GlumFit(glm, design_info, feature_names, X_design, sample_weight)
+
+    # Keep a minimal reference frame so the (unpicklable) design_info can be
+    # rebuilt on unpickle. Two rows suffice: patsy derives categorical contrasts
+    # from each column's full dtype categories, not the observed values, and the
+    # codebase uses only stateless transforms (precomputed squares, explicit-knot
+    # splines), so no fit-time state needs preserving.
+    ref_frame = data.head(2).copy()
+    return _GlumFit(
+        glm,
+        design_info,
+        feature_names,
+        X_design,
+        sample_weight,
+        formula=formula,
+        ref_frame=ref_frame,
+    )

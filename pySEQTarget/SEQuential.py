@@ -111,6 +111,16 @@ class SEQuential:
         _param_checker(self)
         _data_checker(self)
 
+    def __getstate__(self):
+        # The glum design-info cache (_outcome_fit) holds patsy DesignInfo
+        # objects, which can't be pickled (patsy #26). It is a per-process speed
+        # cache rebuilt lazily on first fit, so drop it when crossing a process
+        # boundary (parallel bootstrap / offload); workers repopulate it. Without
+        # this, parallel=True + glm_package="glum" crashes on pickling.
+        state = self.__dict__.copy()
+        state.pop("_patsy_design_cache", None)
+        return state
+
     def expand(self):
         """
         Creates the sequentially nested, emulated target trial structure.

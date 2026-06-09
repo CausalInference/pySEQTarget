@@ -80,8 +80,17 @@ def _bootstrap_worker(obj, method_name, original_DT, i, seed, args, kwargs):
     # Disable bootstrapping to prevent recursion
     obj.bootstrap_nboot = 0
 
+    # Call the raw, undecorated fit body — not the @bootstrap_loop-wrapped
+    # method — so it returns this replicate's single model dict. Going through
+    # the wrapper would re-enter bootstrap_loop and return a list ([model_dict]),
+    # which the serial path never does, breaking the hazard/survival consumers
+    # that index outcome_model[i]["outcome"].
     method = getattr(obj, method_name)
-    result = method(*args, **kwargs)
+    raw = getattr(method, "__wrapped__", None)
+    if raw is not None:
+        result = raw(obj, *args, **kwargs)
+    else:
+        result = method(*args, **kwargs)
     obj._rng = None
     return result
 

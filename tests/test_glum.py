@@ -358,6 +358,49 @@ def test_glum_design_cache_handles_categorical_level_reordering():
     assert list(mb.params.index) == list(m.params.index)
 
 
+def test_glum_model_pickle_roundtrip_preserves_predictions():
+    # _GlumFit holds a patsy DesignInfo, which cannot be pickled (patsy #26).
+    # It must rebuild the DesignInfo on unpickle from the stored formula +
+    # reference frame so fitted models can cross a process boundary (parallel
+    # bootstrap, offload). The roundtrip must preserve params and predictions
+    # exactly and yield a usable design_info.
+    import pickle
+
+    import numpy as np
+    import pandas as pd
+
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 500
+    df = pd.DataFrame(
+        {
+            "y": (rng.random(n) < 0.4).astype(int),
+            "x": rng.standard_normal(n),
+            "g": pd.Categorical(rng.choice(["a", "b", "c"], n), categories=["a", "b", "c"]),
+        }
+    )
+
+    m = _fit_glum("y ~ x + g", df)
+    pred = m.predict(df)
+
+    m2 = pickle.loads(pickle.dumps(m))
+
+    assert list(m2.params.index) == list(m.params.index)
+    assert list(m2.params.values) == approx(list(m.params.values), rel=1e-12, abs=1e-12)
+    assert list(m2.exog_names) == list(m.exog_names)
+    # design_info is rebuilt and reproduces the frozen column structure
+    assert list(m2.model.data.design_info.column_names) == list(
+        m.model.data.design_info.column_names
+    )
+    # predictions are bit-identical through both predict paths
+    np.testing.assert_array_equal(m2.predict(df), pred)
+    np.testing.assert_array_equal(
+        m2.predict(m2._X_design, transform=False),
+        m.predict(m._X_design, transform=False),
+    )
+
+
 def test_glum_warm_start_dropped_when_design_columns_mismatch():
     # The defensive guard in _fit_glum: a (values, names) tuple whose names
     # don't line up with the patsy design matrix must be ignored, falling back
