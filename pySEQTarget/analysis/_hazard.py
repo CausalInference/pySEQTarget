@@ -111,8 +111,7 @@ def _truncate_to_first_event(tmp, id_col, event_col):
     return (
         tmp.with_columns(
             (
-                pl.col(event_col).cum_sum().over([id_col, "trial"])
-                - pl.col(event_col)
+                pl.col(event_col).cum_sum().over([id_col, "trial"]) - pl.col(event_col)
             ).alias("_event_prior")
         )
         .filter(pl.col("_event_prior") == 0)

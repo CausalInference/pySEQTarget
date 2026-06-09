@@ -21,7 +21,9 @@ def _grid(rows):
     for uid, trial, outs in rows:
         for f, o in enumerate(outs):
             recs.append((uid, trial, f, o))
-    return pl.DataFrame(recs, schema=["id", "trial", "followup", "outcome"], orient="row")
+    return pl.DataFrame(
+        recs, schema=["id", "trial", "followup", "outcome"], orient="row"
+    )
 
 
 def test_first_event_row_is_kept_for_each_pattern():
