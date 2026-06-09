@@ -14,7 +14,9 @@ def _safe_predict(model, data, clip_probs=True):
     data : pandas DataFrame
         Data to predict on
     clip_probs : bool
-        If True, clip probabilities to [0, 1] and replace NaN with 0.5
+        If True, clip probabilities to [0, 1]. Raises ValueError if any
+        predicted probability is NaN (this signals a train/predict dtype
+        mismatch or coefficient overflow, not a value to silently impute).
     """
     try:
         probs = model.predict(data)

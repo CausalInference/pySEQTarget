@@ -87,6 +87,41 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
     return _create_hazard_output(np.exp(full_log_hr), lci, uci, val, self)
 
 
+def _truncate_to_first_event(tmp, id_col, event_col):
+    """Reduce a simulated counterfactual grid to one survival row per (id, trial).
+
+    Keeps the FIRST row in which ``event_col`` fires (status 1 at the first event
+    time); if the unit never has an event it keeps the final follow-up row
+    (status 0, censored at max follow-up).
+
+    Outcomes are simulated independently at every follow-up row, so a unit may
+    have ``event_col == 1`` at several rows. We therefore keep only rows whose
+    cumulative event count *strictly before* the current row is 0 — i.e. every
+    row up to and including the first event — and then take the last of those,
+    which is the first-event row (or the max-follow-up row when there is no
+    event).
+
+    NOTE: the inclusive form ``cum_sum(event_col) <= 1`` is WRONG here: it
+    retains post-event rows (the cumulative count stays at 1 until a second
+    event), so ``.last()`` returns the final follow-up row and a single event is
+    silently recorded as censored. That dropped ~99% of simulated events and
+    inflated the marginal-HR variance ~8x relative to SEQTaRget (R). See
+    tests/test_hazard_truncation.py.
+    """
+    return (
+        tmp.with_columns(
+            (
+                pl.col(event_col).cum_sum().over([id_col, "trial"])
+                - pl.col(event_col)
+            ).alias("_event_prior")
+        )
+        .filter(pl.col("_event_prior") == 0)
+        .group_by([id_col, "trial"])
+        .last()
+        .drop("_event_prior")
+    )
+
+
 def _hazard_handler(self, data, idx, boot_idx, rng):
     exclude_cols = [
         "followup",
@@ -140,36 +175,18 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
             ce_sim = rng.binomial(1, ce_prob)
             tmp = tmp.with_columns([pl.Series("ce", ce_sim)])
 
-            tmp = (
-                tmp.with_columns(
-                    [
-                        pl.when((pl.col("outcome") == 1) | (pl.col("ce") == 1))
-                        .then(1)
-                        .otherwise(0)
-                        .alias("any_event")
-                    ]
-                )
-                .with_columns(
-                    [
-                        pl.col("any_event")
-                        .cum_sum()
-                        .over([self.id_col, "trial"])
-                        .alias("event_cumsum")
-                    ]
-                )
-                .filter(pl.col("event_cumsum") <= 1)
-            )
-        else:
             tmp = tmp.with_columns(
                 [
-                    pl.col("outcome")
-                    .cum_sum()
-                    .over([self.id_col, "trial"])
-                    .alias("event_cumsum")
+                    pl.when((pl.col("outcome") == 1) | (pl.col("ce") == 1))
+                    .then(1)
+                    .otherwise(0)
+                    .alias("any_event")
                 ]
-            ).filter(pl.col("event_cumsum") <= 1)
+            )
+            tmp = _truncate_to_first_event(tmp, self.id_col, "any_event")
+        else:
+            tmp = _truncate_to_first_event(tmp, self.id_col, "outcome")
 
-        tmp = tmp.group_by([self.id_col, "trial"]).last()
         all_treatments.append(tmp)
 
     sim_data = pl.concat(all_treatments)
