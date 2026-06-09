@@ -59,6 +59,24 @@ def _param_checker(self):
             "For weighted ITT analyses, cense_colname or visit_colname must be provided."
         )
 
+    if (
+        self.weighted
+        and self.method != "ITT"
+        and self.numerator is not None
+        and self.denominator is not None
+        and self.numerator == self.denominator
+    ):
+        warnings.warn(
+            f"Numerator and denominator weight models use identical "
+            f"covariates ('{self.numerator}'); the stabilized weights "
+            "will all equal 1 (i.e., no weighting). The denominator "
+            "should typically include the time-varying confounders "
+            "that the numerator omits — check for a typo in either or "
+            "both of 'numerator' and 'denominator'.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     if self.excused:
         _, self.excused_colnames = _pad(self.treatment_level, self.excused_colnames)
     _, self.weight_eligible_colnames = _pad(
