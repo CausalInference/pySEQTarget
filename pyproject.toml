@@ -24,7 +24,7 @@ classifiers = [
 authors = [
     {name = "Ryan O'Dea", email = "ryan.odea@psi.ch"},
     {name = "Alejandro Szmulewicz", email = "aszmulewicz@hsph.harvard.edu"},
-    {name = "Tom Palmer", email = "tom.palmer@bristol.ac.uk"},
+    {name = "Tom Palmer", email = "remlapmot@hotmail.com"},
     {name = "Miguel Hernán", email = "mhernan@hsph.harvard.edu"},
 ]
 
