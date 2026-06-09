@@ -12,16 +12,18 @@ permissions:
 
 jobs:
   test:
-    runs-on: macos-26
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [macos-26, ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v6
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v8.1.0
+      uses: astral-sh/setup-uv@v8.2.0
 
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
@@ -42,7 +44,7 @@ jobs:
         uv run pytest tests/ -v --cov=pySEQTarget --cov-report=xml
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v6
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: CausalInference/pySEQTarget

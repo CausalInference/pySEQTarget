@@ -6,9 +6,21 @@ def _weight_bind(self, WDT):
         join = "inner"
         on = [self.id_col, "period"]
         WDT = WDT.rename({self.time_col: "period"})
-        self.DT = self.DT.with_columns(
-            pl.col(self.id_col).str.replace(r"_\d+$", "").alias(self.id_col)
-        )
+        # On a bootstrap pass _prepare_boot_data transformed id_col so that
+        # each replicate has a unique value -- integer math (orig_id * id_mult
+        # + replicate) for int IDs, "{orig_id}_{replicate}" for string IDs.
+        # Recover the original ID here so the join to WDT (which still carries
+        # un-resampled originals) lines up. No-op on the main fit pass.
+        is_boot = getattr(self, "_current_boot_idx", None) is not None
+        if is_boot:
+            if self.DT.schema[self.id_col].is_integer():
+                self.DT = self.DT.with_columns(
+                    (pl.col(self.id_col) // self._boot_id_mult).alias(self.id_col)
+                )
+            else:
+                self.DT = self.DT.with_columns(
+                    pl.col(self.id_col).str.replace(r"_\d+$", "").alias(self.id_col)
+                )
     else:
         join = "left"
         on = [self.id_col, "trial", "followup"]

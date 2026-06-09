@@ -23,6 +23,10 @@ from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
                         _fit_visit, _offload_weights, _weight_bind,
                         _weight_predict, _weight_setup, _weight_stats)
 
+# Default seed used when the user supplies none, so an unseeded run is
+# deterministic across processes (matching SEQTaRget's capture of .Random.seed).
+_DEFAULT_SEED = 0
+
 
 class SEQuential:
     """
@@ -72,9 +76,18 @@ class SEQuential:
         for name, value in asdict(parameters).items():
             setattr(self, name, value)
 
-        self._rng = (
-            np.random.RandomState(self.seed) if self.seed is not None else np.random
-        )
+        # Mirror SEQTaRget (R): always pin a concrete seed so the Monte-Carlo
+        # hazard simulation is reseeded before each run and is reproducible.
+        # R captures .Random.seed when none is given, which is fixed in a fresh
+        # process, so an unseeded R run is deterministic across runs. We match
+        # that with a fixed default seed rather than falling back to the global,
+        # never-reseeded np.random — which let hazard estimates change silently
+        # between otherwise identical runs.
+        if self.seed is None:
+            self.seed = _DEFAULT_SEED
+            if self.verbose:
+                print(f"No seed supplied; using default seed {self.seed}")
+        self._rng = np.random.RandomState(self.seed)
 
         self._offloader = Offloader(enabled=self.offload, dir=self.offload_dir)
 
@@ -154,10 +167,6 @@ class SEQuential:
                     self.cense_denominator,
                 ]
             ).union(kept),
-        ).with_columns(pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col))
-
-        self.data = self.data.with_columns(
-            pl.col(self.id_col).cast(pl.Utf8).alias(self.id_col)
         )
 
         if self.verbose:
@@ -241,25 +250,30 @@ class SEQuential:
             boot_idx = self._current_boot_idx
 
         if self.weighted:
-            WDT = _weight_setup(self)
+            WDT_pl = _weight_setup(self)
             if not self.weight_preexpansion and not self.excused:
-                WDT = WDT.filter(pl.col("followup") > 0)
+                WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
 
-            WDT = WDT.to_pandas()
+            # The weight-fit helpers (_fit_LTFU etc.) use pandas-style indexing
+            # and pass pandas frames to glum/statsmodels, so we convert once.
+            # The fits don't mutate WDT_pd - they store models on `self` - so
+            # we keep the original polars frame for the downstream steps
+            # rather than paying a pl.from_pandas() round-trip per replicate.
+            WDT_pd = WDT_pl.to_pandas()
             for col in self.fixed_cols:
-                if col in WDT.columns:
-                    WDT[col] = WDT[col].astype("category")
+                if col in WDT_pd.columns:
+                    WDT_pd[col] = WDT_pd[col].astype("category")
 
-            _fit_LTFU(self, WDT)
-            _fit_visit(self, WDT)
-            _fit_numerator(self, WDT)
-            _fit_denominator(self, WDT)
+            _fit_LTFU(self, WDT_pd)
+            _fit_visit(self, WDT_pd)
+            _fit_numerator(self, WDT_pd)
+            _fit_denominator(self, WDT_pd)
 
             if self.offload:
                 _offload_weights(self, boot_idx)
 
-            WDT = pl.from_pandas(WDT)
-            WDT = _weight_predict(self, WDT)
+            del WDT_pd
+            WDT = _weight_predict(self, WDT_pl)
             _weight_bind(self, WDT)
             self.weight_stats = _weight_stats(self)
 

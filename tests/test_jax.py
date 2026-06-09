@@ -3,6 +3,10 @@ import pandas as pd
 import pytest
 from pytest import approx
 
+# jax is an optional dependency (the ``gpu`` extra) and is not installed on
+# every platform — skip the whole module rather than erroring at collection.
+pytest.importorskip("jax")
+
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 from pySEQTarget.helpers._jax_fit import _JaxFit

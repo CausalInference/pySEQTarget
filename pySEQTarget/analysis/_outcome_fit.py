@@ -130,7 +130,22 @@ def _outcome_fit(
         case "glum":
             from ..helpers._glum_fit import _fit_glum
 
-            return _fit_glum(full_formula, df_pd, var_weights=var_weights)
+            # Per-instance cache of patsy design infos, keyed by formula. The
+            # main fit populates it; bootstrap replicates skip the formula
+            # parse and reuse the cached column structure. Cleared on the
+            # main-fit pass so a second fit() call with a different formula
+            # doesn't hit stale entries.
+            if getattr(self, "_current_boot_idx", None) is None:
+                self._patsy_design_cache = {}
+            cache = self.__dict__.setdefault("_patsy_design_cache", {})
+
+            return _fit_glum(
+                full_formula,
+                df_pd,
+                var_weights=var_weights,
+                start_params=start_params,
+                design_cache=cache,
+            )
 
         case "jax":
             from ..helpers._jax_fit import _fit_jax

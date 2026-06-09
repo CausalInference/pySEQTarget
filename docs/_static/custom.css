@@ -6,3 +6,12 @@
 div#top_nav nav {
     padding: 0.7rem 1rem;
 }
+
+/* The navbar height is mostly content-driven (h1 + search box), so the padding
+   override alone leaves it tall. Shrink the title so the row collapses to the
+   intended height. */
+div#top_nav nav h1 {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
