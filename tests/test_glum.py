@@ -377,7 +377,9 @@ def test_glum_model_pickle_roundtrip_preserves_predictions():
         {
             "y": (rng.random(n) < 0.4).astype(int),
             "x": rng.standard_normal(n),
-            "g": pd.Categorical(rng.choice(["a", "b", "c"], n), categories=["a", "b", "c"]),
+            "g": pd.Categorical(
+                rng.choice(["a", "b", "c"], n), categories=["a", "b", "c"]
+            ),
         }
     )
 
