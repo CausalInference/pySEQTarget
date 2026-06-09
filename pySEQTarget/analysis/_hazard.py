@@ -1,4 +1,6 @@
+import copy
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import polars as pl
@@ -33,8 +35,6 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
         return _create_hazard_output(None, None, None, val, self)
 
     if self.bootstrap_nboot > 0:
-        boot_log_hrs = []
-
         # outcome_model[model_pos + 1] was fit on _boot_samples[sample_idx];
         # skipped replicates make this mapping non-identity, so iterate it
         # explicitly rather than assuming model index == sample index.
@@ -42,31 +42,18 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
         if boot_sample_idx is None:
             boot_sample_idx = list(range(len(self._boot_samples)))
 
-        for model_pos, sample_idx in enumerate(boot_sample_idx):
-            if self.seed is not None:
-                self._rng = np.random.RandomState(self.seed + sample_idx + 1)
-            id_counts = self._boot_samples[sample_idx]
-
-            counts = pl.DataFrame(
-                {
-                    self.id_col: list(id_counts.keys()),
-                    "_count": list(id_counts.values()),
-                }
-            )
-            boot_data = (
-                data.lazy()
-                .join(counts.lazy(), on=self.id_col, how="inner")
-                .with_columns(pl.int_ranges(0, pl.col("_count")).alias("_rep"))
-                .explode("_rep")
-                .drop("_count", "_rep")
-                .collect()
-            )
-
-            boot_log_hr = _hazard_handler(
-                self, boot_data, idx, model_pos + 1, self._rng
-            )
-            if boot_log_hr is not None and not np.isnan(boot_log_hr):
-                boot_log_hrs.append(boot_log_hr)
+        # The per-replicate hazard simulation is GIL-bound (patsy design build),
+        # so spread it over a process pool when parallel=True. Needs a concrete
+        # seed (always set since SEQuential pins a default) so each replicate's
+        # RNG — and therefore the result — is identical to the serial path.
+        if getattr(self, "parallel", False) and self.seed is not None:
+            boot_log_hrs = _parallel_boot_log_hrs(self, data, idx, boot_sample_idx)
+        else:
+            boot_log_hrs = []
+            for model_pos, sample_idx in enumerate(boot_sample_idx):
+                boot_log_hr = _one_boot_log_hr(self, data, idx, model_pos, sample_idx)
+                if boot_log_hr is not None and not np.isnan(boot_log_hr):
+                    boot_log_hrs.append(boot_log_hr)
 
         if len(boot_log_hrs) == 0:
             return _create_hazard_output(np.exp(full_log_hr), None, None, val, self)
@@ -119,6 +106,86 @@ def _truncate_to_first_event(tmp, id_col, event_col):
         .last()
         .drop("_event_prior")
     )
+
+
+def _one_boot_log_hr(self, data, idx, model_pos, sample_idx):
+    """Build one bootstrap resample of ``data`` and return its log hazard ratio.
+
+    The RNG is rebuilt from ``seed + sample_idx + 1`` (matching the serial loop
+    exactly), so this is bit-identical whether called serially or in a worker.
+    """
+    seed = getattr(self, "seed", None)
+    rng = np.random.RandomState(seed + sample_idx + 1) if seed is not None else self._rng
+
+    id_counts = self._boot_samples[sample_idx]
+    counts = pl.DataFrame(
+        {
+            self.id_col: list(id_counts.keys()),
+            "_count": list(id_counts.values()),
+        }
+    )
+    boot_data = (
+        data.lazy()
+        .join(counts.lazy(), on=self.id_col, how="inner")
+        .with_columns(pl.int_ranges(0, pl.col("_count")).alias("_rep"))
+        .explode("_rep")
+        .drop("_count", "_rep")
+        .collect()
+    )
+    return _hazard_handler(self, boot_data, idx, model_pos + 1, rng)
+
+
+# Process-pool worker state. Set once per worker process by the initializer so
+# each task ships only small integers, not the (slimmed) SEQuential object or
+# the analysis frame.
+_HZ_WORKER_OBJ = None
+_HZ_WORKER_DATA = None
+
+
+def _hazard_pool_init(obj, data_ref):
+    global _HZ_WORKER_OBJ, _HZ_WORKER_DATA
+    _HZ_WORKER_OBJ = obj
+    _HZ_WORKER_DATA = obj._offloader.load_dataframe(data_ref)
+
+
+def _hazard_pool_task(idx, model_pos, sample_idx):
+    return _one_boot_log_hr(_HZ_WORKER_OBJ, _HZ_WORKER_DATA, idx, model_pos, sample_idx)
+
+
+def _parallel_boot_log_hrs(self, data, idx, boot_sample_idx):
+    """Run the bootstrap hazard simulations over a process pool.
+
+    The analysis frame is handed to each worker process once (via the offloader
+    ref + pool initializer), and a slimmed copy of ``self`` carries the fitted
+    models. Results are gathered in submission order, matching the serial loop;
+    NaN/None replicates are dropped the same way.
+    """
+    data_ref = self._offloader.save_dataframe(data, f"_haz_DT_{idx}")
+
+    # Slim copy for the pool: drop the large frames workers reload from data_ref;
+    # keep the fitted models, bootstrap samples, and config. _GlumFit and
+    # SEQuential each drop their unpicklable / heavy state on pickle.
+    slim = copy.copy(self)
+    slim.DT = None
+    slim.data = None
+    slim._rng = None
+
+    boot_log_hrs = []
+    with ProcessPoolExecutor(
+        max_workers=self.ncores,
+        initializer=_hazard_pool_init,
+        initargs=(slim, data_ref),
+    ) as executor:
+        futures = [
+            executor.submit(_hazard_pool_task, idx, model_pos, sample_idx)
+            for model_pos, sample_idx in enumerate(boot_sample_idx)
+        ]
+        for future in futures:
+            result = future.result()
+            if result is not None and not np.isnan(result):
+                boot_log_hrs.append(result)
+
+    return boot_log_hrs
 
 
 def _hazard_handler(self, data, idx, boot_idx, rng):

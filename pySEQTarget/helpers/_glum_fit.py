@@ -53,7 +53,13 @@ class _GlumFit:
         self._glum = glum_model
         self._design_info = design_info
         self._X_design = X_design  # includes the intercept column
+        self._nobs = X_design.shape[0]
         self._sample_weight = sample_weight
+        # Lazily-filled cache of the (small) coefficient covariance matrix. It
+        # lets __getstate__ drop the full design matrix (_X_design can be 100s
+        # of MB) while keeping bse/summary working after unpickle — important
+        # for the process pool and offload, which ship many fitted models.
+        self._cov_cached = None
         # Inputs to rebuild ``design_info`` on unpickle: the patsy DesignInfo
         # itself cannot be pickled (patsy #26), so we keep the formula and a
         # tiny reference frame (which preserves each categorical column's full,
@@ -80,6 +86,12 @@ class _GlumFit:
         state = self.__dict__.copy()
         state.pop("_design_info", None)
         state.pop("model", None)
+        # Replace the full design matrix with the small cached covariance so the
+        # pickled model stays lightweight (the design matrix can be 100s of MB).
+        # bse/summary still work via _cov_cached; predict never needs _X_design.
+        if state.get("_cov_cached") is None:
+            state["_cov_cached"] = self.cov_params()
+        state["_X_design"] = None
         return state
 
     def __setstate__(self, state):
@@ -117,12 +129,20 @@ class _GlumFit:
         return self._glum.predict(X_arr)
 
     def cov_params(self):
+        if self._cov_cached is not None:
+            return self._cov_cached
         X = self._X_design
+        if X is None:
+            raise RuntimeError(
+                "cov_params unavailable: design matrix was dropped on pickle and "
+                "no covariance was cached."
+            )
         mu = self._glum.predict(X[:, 1:])
         w = mu * (1.0 - mu)
         if self._sample_weight is not None:
             w = w * np.asarray(self._sample_weight)
-        return np.linalg.pinv(X.T @ (w[:, None] * X))
+        self._cov_cached = np.linalg.pinv(X.T @ (w[:, None] * X))
+        return self._cov_cached
 
     @property
     def bse(self):
@@ -158,7 +178,7 @@ class _GlumFit:
                     "GLM (glum backend)",
                     "Binomial",
                     "logit",
-                    str(self._X_design.shape[0]),
+                    str(self._nobs),
                 ]
             },
             index=["Model:", "Family:", "Link:", "No. Observations:"],

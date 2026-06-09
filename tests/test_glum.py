@@ -395,12 +395,18 @@ def test_glum_model_pickle_roundtrip_preserves_predictions():
     assert list(m2.model.data.design_info.column_names) == list(
         m.model.data.design_info.column_names
     )
-    # predictions are bit-identical through both predict paths
+    # predictions are bit-identical through both predict paths. The design
+    # matrix is an external input (the unpickled model drops its own _X_design
+    # to stay lightweight), so feed the original to both for the transform=False
+    # path.
     np.testing.assert_array_equal(m2.predict(df), pred)
     np.testing.assert_array_equal(
-        m2.predict(m2._X_design, transform=False),
+        m2.predict(m._X_design, transform=False),
         m.predict(m._X_design, transform=False),
     )
+    # bse still works after unpickle even though _X_design was dropped (cached cov)
+    assert m2._X_design is None
+    np.testing.assert_allclose(m2.bse.values, m.bse.values, rtol=0, atol=0)
 
 
 def test_glum_warm_start_dropped_when_design_columns_mismatch():
