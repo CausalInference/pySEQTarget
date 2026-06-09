@@ -115,7 +115,9 @@ def _one_boot_log_hr(self, data, idx, model_pos, sample_idx):
     exactly), so this is bit-identical whether called serially or in a worker.
     """
     seed = getattr(self, "seed", None)
-    rng = np.random.RandomState(seed + sample_idx + 1) if seed is not None else self._rng
+    rng = (
+        np.random.RandomState(seed + sample_idx + 1) if seed is not None else self._rng
+    )
 
     id_counts = self._boot_samples[sample_idx]
     counts = pl.DataFrame(
