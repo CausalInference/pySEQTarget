@@ -197,6 +197,17 @@ class SEQuential:
         if self.verbose:
             n, m = self.DT.shape
             print(f"Final analysis dataset: {n:,} observations, {m} variables")
+            # Under censoring the outcome model is fit only on the un-censored
+            # rows (switch != 1, matching _outcome_fit); the rest are retained in
+            # the dataset but artificially censored. Report the split so the
+            # count lines up with implementations that print only the modelled
+            # rows (e.g. Stata seqtte).
+            if self.method == "censoring" and "switch" in self.DT.columns:
+                n_censored = self.DT.filter(pl.col("switch") == 1).height
+                print(
+                    f"  entering outcome model (uncensored): {n - n_censored:,}\n"
+                    f"  artificially censored (treatment switch): {n_censored:,}"
+                )
 
         end = time.perf_counter()
         self._expansion_time = _format_time(start, end)
