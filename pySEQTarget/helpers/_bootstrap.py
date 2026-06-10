@@ -11,6 +11,23 @@ from tqdm import tqdm
 from ._format_time import _format_time
 
 
+# Side-effect attributes set by the main fit that bootstrap replicates overwrite
+# when they run in-process (the serial path: each replicate calls the fit body
+# again, and _fit_numerator/_fit_denominator do `self.X_model = fits`). Snapshot
+# them after the main fit and restore after the replicate loop so summaries
+# reflect the main fit, not the last replicate. The parallel path already keeps
+# them (replicates run in worker copies), so restore is a no-op there.
+_MAIN_FIT_ATTRS = (
+    "numerator_model",
+    "denominator_model",
+    "cense_numerator_model",
+    "cense_denominator_model",
+    "visit_numerator_model",
+    "visit_denominator_model",
+    "weight_stats",
+)
+
+
 def _prepare_boot_data(self, data, boot_id):
     id_counts = self._boot_samples[boot_id]
 
@@ -113,6 +130,14 @@ def bootstrap_loop(method):
         full = method(self, *args, **kwargs)
         results.append(full)
 
+        # Snapshot the main-fit weight models before any in-process replicate
+        # can overwrite them; restored just before returning.
+        main_fit_state = {
+            attr: getattr(self, attr)
+            for attr in _MAIN_FIT_ATTRS
+            if hasattr(self, attr)
+        }
+
         if getattr(self, "bootstrap_nboot") > 0 and getattr(
             self, "_boot_samples", None
         ):
@@ -213,6 +238,11 @@ def bootstrap_loop(method):
 
             end = time.perf_counter()
             self._model_time = _format_time(start, end)
+
+        # Restore the main-fit weight models so numerator/denominator summaries
+        # reflect the main fit rather than the last in-process replicate.
+        for attr, value in main_fit_state.items():
+            setattr(self, attr, value)
 
         self.outcome_model = results
         return results
