@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 from ._format_time import _format_time
 
-
 # Side-effect attributes set by the main fit that bootstrap replicates overwrite
 # when they run in-process (the serial path: each replicate calls the fit body
 # again, and _fit_numerator/_fit_denominator do `self.X_model = fits`). Snapshot
@@ -133,9 +132,7 @@ def bootstrap_loop(method):
         # Snapshot the main-fit weight models before any in-process replicate
         # can overwrite them; restored just before returning.
         main_fit_state = {
-            attr: getattr(self, attr)
-            for attr in _MAIN_FIT_ATTRS
-            if hasattr(self, attr)
+            attr: getattr(self, attr) for attr in _MAIN_FIT_ATTRS if hasattr(self, attr)
         }
 
         if getattr(self, "bootstrap_nboot") > 0 and getattr(
