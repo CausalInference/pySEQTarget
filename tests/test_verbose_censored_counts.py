@@ -30,7 +30,9 @@ def test_verbose_reports_uncensored_censored_split(capsys):
     # lines up with implementations that print only the modelled rows.
     s, out = _expand("censoring", capsys)
 
-    total = int(re.search(r"Final analysis dataset: ([\d,]+)", out).group(1).replace(",", ""))
+    total = int(
+        re.search(r"Final analysis dataset: ([\d,]+)", out).group(1).replace(",", "")
+    )
     unc = int(re.search(r"uncensored\): ([\d,]+)", out).group(1).replace(",", ""))
     cen = int(re.search(r"treatment switch\): ([\d,]+)", out).group(1).replace(",", ""))
 
