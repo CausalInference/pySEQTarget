@@ -141,19 +141,13 @@ class SEQoutput:
             case "nonunique_compevent":
                 data = self.diagnostic_tables.get("nonunique_compevent")
             case "unique_switches":
-                if self.diagnostic_tables.has_key("unique_switches"):
-                    data = self.diagnostic_tables["unique_switches"]
-                else:
-                    data = None
+                data = self.diagnostic_tables.get("unique_switches")
             case "nonunique_switches":
-                if self.diagnostic_tables.has_key("nonunique_switches"):
-                    data = self.diagnostic_tables["nonunique_switches"]
-                else:
-                    data = None
+                data = self.diagnostic_tables.get("nonunique_switches")
             case _:
                 data = self.km_data
         if data is None:
-            raise ValueError("Data {type} was not created in the SEQuential process")
+            raise ValueError(f"Data {type} was not created in the SEQuential process")
         return data
 
     def to_md(self, filename="SEQuential_results.md") -> None:

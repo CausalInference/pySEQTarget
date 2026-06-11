@@ -25,3 +25,29 @@ def test_ITT_collector():
     collector.retrieve_data("unique_outcomes")
     with pytest.raises(ValueError):
         collector.retrieve_data("km_data")
+    # ITT produces no switch diagnostics: a clean ValueError, not the
+    # Python-2 dict.has_key AttributeError this used to raise.
+    with pytest.raises(ValueError, match="not created"):
+        collector.retrieve_data("unique_switches")
+
+
+def test_censoring_collector_switch_diagnostics():
+    # Under method="censoring" the switch diagnostics exist and must be
+    # retrievable (regression for dict.has_key).
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="censoring",
+        parameters=SEQopts(),
+    )
+    s.expand()
+    s.fit()
+    collector = s.collect()
+    assert collector.retrieve_data("unique_switches").height > 0
+    assert collector.retrieve_data("nonunique_switches").height > 0
