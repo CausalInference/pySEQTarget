@@ -453,13 +453,17 @@ class SEQuential:
             "collection_time": self._time_collected,
         }
 
-        if self.compevent_colname is not None:
-            compevent_models = [model["compevent"] for model in self.outcome_model]
-        else:
-            compevent_models = None
-
         if self.outcome_model is not None:
             outcome_models = [model["outcome"] for model in self.outcome_model]
+            if self.compevent_colname is not None:
+                compevent_models = [model["compevent"] for model in self.outcome_model]
+            else:
+                compevent_models = None
+        else:
+            # collect() before fit(): no models to report, but the rest of the
+            # output (diagnostics, timings) is still valid.
+            outcome_models = None
+            compevent_models = None
 
         if self.risk_estimates is None:
             risk_ratio = risk_difference = None
