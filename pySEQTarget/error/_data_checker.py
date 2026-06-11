@@ -37,6 +37,14 @@ def _data_checker(self):
         )
 
     for col in self.excused_colnames:
+        # _param_checker pads the list with None up to len(treatment_level)
+        # when fewer excused columns are supplied.
+        if col is None:
+            continue
+        if col not in self.data.columns:
+            raise ValueError(
+                f"excused_colnames entry '{col}' not found in data columns."
+            )
         violations = (
             self.data.sort([self.id_col, self.time_col])
             .group_by(self.id_col)
