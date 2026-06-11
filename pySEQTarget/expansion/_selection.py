@@ -37,9 +37,14 @@ def _random_selection(self):
             ).alias("trialID")
         )
         .filter(
+            # Parentheses matter: `|` binds tighter than `!=`, so without them
+            # this parses as `(is_in | col) != level`, which silently drops
+            # every sampled control trial when treatment_level[0] != 0.
             pl.col("trialID").is_in(sample)
-            | pl.col(f"{self.treatment_col}{self.indicator_baseline}")
-            != self.treatment_level[0]
+            | (
+                pl.col(f"{self.treatment_col}{self.indicator_baseline}")
+                != self.treatment_level[0]
+            )
         )
         .drop("trialID")
     )
