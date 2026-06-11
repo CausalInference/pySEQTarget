@@ -120,3 +120,73 @@ def test_jax_warm_start_reaches_same_optimum():
         start_params=(cold.params.values, list(cold.model.exog_names)),
     )
     assert list(warm.params) == approx(list(cold.params), rel=1e-3, abs=1e-3)
+
+
+def test_jax_fit_pickle_roundtrip():
+    # _JaxFit holds a patsy DesignInfo, which cannot be pickled; offload and
+    # the parallel bootstrap both pickle fitted models. The wrapper must
+    # rebuild the design info on unpickle (same strategy as _GlumFit) and keep
+    # predict/bse/summary working.
+    import pickle
+
+    df = _binary_frame()
+    m = _JaxFit("y ~ x1 + x2", df)
+
+    m2 = pickle.loads(pickle.dumps(m))
+
+    assert list(m2.params) == approx(list(m.params), rel=1e-12, abs=1e-12)
+    assert m2.predict(df) == approx(m.predict(df), rel=1e-10, abs=1e-12)
+    assert list(m2.bse) == approx(list(m.bse), rel=1e-10, abs=1e-12)
+    assert str(m2.summary())
+
+
+def test_jax_offload_bootstrap_survival():
+    # End-to-end: offload=True pickles every fitted model to disk via joblib.
+    data = load_data("SEQdata")
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(
+            glm_package="jax",
+            bootstrap_nboot=2,
+            seed=7,
+            km_curves=True,
+            offload=True,
+        ),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    s.survival()
+    assert s.km_data.height > 0
+
+
+def test_jax_parallel_bootstrap():
+    # End-to-end: parallel=True pickles the SEQuential object into worker
+    # processes and the fitted models back.
+    data = load_data("SEQdata")
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(
+            glm_package="jax", bootstrap_nboot=2, seed=7, parallel=True, ncores=2
+        ),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    assert len(s.outcome_model) == 3  # main + 2 replicates
