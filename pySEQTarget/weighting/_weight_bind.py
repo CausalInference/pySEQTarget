@@ -2,6 +2,7 @@ import polars as pl
 
 
 def _weight_bind(self, WDT):
+    drop_after_join = []
     if self.weight_preexpansion:
         join = "inner"
         on = [self.id_col, "period"]
@@ -9,23 +10,29 @@ def _weight_bind(self, WDT):
         # On a bootstrap pass _prepare_boot_data transformed id_col so that
         # each replicate has a unique value -- integer math (orig_id * id_mult
         # + replicate) for int IDs, "{orig_id}_{replicate}" for string IDs.
-        # Recover the original ID here so the join to WDT (which still carries
-        # un-resampled originals) lines up. No-op on the main fit pass.
+        # WDT still carries the un-resampled originals, so join on a recovered
+        # original-ID key. Do NOT overwrite id_col itself: the weight cum_prod
+        # below groups on (id_col, trial), and collapsing replicate copies of a
+        # multiply-sampled subject into one group would interleave their rows
+        # and corrupt the cumulative weights (each copy must accumulate its own
+        # product independently). No-op on the main fit pass.
         is_boot = getattr(self, "_current_boot_idx", None) is not None
         if is_boot:
             if self.DT.schema[self.id_col].is_integer():
-                self.DT = self.DT.with_columns(
-                    (pl.col(self.id_col) // self._boot_id_mult).alias(self.id_col)
-                )
+                orig_id = pl.col(self.id_col) // self._boot_id_mult
             else:
-                self.DT = self.DT.with_columns(
-                    pl.col(self.id_col).str.replace(r"_\d+$", "").alias(self.id_col)
-                )
+                orig_id = pl.col(self.id_col).str.replace(r"_\d+$", "")
+            self.DT = self.DT.with_columns(orig_id.alias("_orig_id"))
+            WDT = WDT.rename({self.id_col: "_orig_id"})
+            on = ["_orig_id", "period"]
+            drop_after_join = ["_orig_id"]
     else:
         join = "left"
         on = [self.id_col, "trial", "followup"]
 
     WDT = self.DT.join(WDT, on=on, how=join)
+    if drop_after_join:
+        WDT = WDT.drop(drop_after_join)
 
     if self.visit_colname is not None:
         visit = pl.col(self.visit_colname) == 0
