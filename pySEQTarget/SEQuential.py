@@ -64,8 +64,11 @@ class SEQuential:
         self.eligible_col = eligible_col
         self.treatment_col = treatment_col
         self.outcome_col = outcome_col
-        self.time_varying_cols = time_varying_cols
-        self.fixed_cols = fixed_cols
+        # Normalize the documented-Optional covariate lists to [] once, so the
+        # many downstream `for col in self.fixed_cols` / set() sites need no
+        # None guards.
+        self.time_varying_cols = time_varying_cols if time_varying_cols else []
+        self.fixed_cols = fixed_cols if fixed_cols else []
         self.method = method
 
         self._time_initialized = datetime.datetime.now()
