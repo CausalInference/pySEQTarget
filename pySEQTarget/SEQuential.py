@@ -274,32 +274,50 @@ class SEQuential:
             boot_idx = self._current_boot_idx
 
         if self.weighted:
-            WDT_pl = _weight_setup(self)
-            if not self.weight_preexpansion and not self.excused:
-                WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
+            # With weight_preexpansion the weight models are fit on the
+            # un-resampled pre-expansion data, so every bootstrap replicate
+            # would refit bit-identical models and re-predict identical
+            # weights. Cache the predicted weight frame from the main fit and
+            # reuse it on replicates; only the join onto the resampled DT
+            # (_weight_bind) and the resulting weight stats differ.
+            cached_WDT = (
+                getattr(self, "_main_weight_WDT", None)
+                if boot_idx is not None and self.weight_preexpansion
+                else None
+            )
+            if cached_WDT is not None:
+                _weight_bind(self, cached_WDT)
+                self.weight_stats = _weight_stats(self)
+            else:
+                WDT_pl = _weight_setup(self)
+                if not self.weight_preexpansion and not self.excused:
+                    WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
 
-            # The weight-fit helpers (_fit_LTFU etc.) use pandas-style indexing
-            # and pass pandas frames to glum/statsmodels, so we convert once.
-            # The fits don't mutate WDT_pd - they store models on `self` - so
-            # we keep the original polars frame for the downstream steps
-            # rather than paying a pl.from_pandas() round-trip per replicate.
-            WDT_pd = WDT_pl.to_pandas()
-            for col in self.fixed_cols:
-                if col in WDT_pd.columns:
-                    WDT_pd[col] = WDT_pd[col].astype("category")
+                # The weight-fit helpers (_fit_LTFU etc.) use pandas-style
+                # indexing and pass pandas frames to glum/statsmodels, so we
+                # convert once. The fits don't mutate WDT_pd - they store
+                # models on `self` - so we keep the original polars frame for
+                # the downstream steps rather than paying a pl.from_pandas()
+                # round-trip per replicate.
+                WDT_pd = WDT_pl.to_pandas()
+                for col in self.fixed_cols:
+                    if col in WDT_pd.columns:
+                        WDT_pd[col] = WDT_pd[col].astype("category")
 
-            _fit_LTFU(self, WDT_pd)
-            _fit_visit(self, WDT_pd)
-            _fit_numerator(self, WDT_pd)
-            _fit_denominator(self, WDT_pd)
+                _fit_LTFU(self, WDT_pd)
+                _fit_visit(self, WDT_pd)
+                _fit_numerator(self, WDT_pd)
+                _fit_denominator(self, WDT_pd)
 
-            if self.offload:
-                _offload_weights(self, boot_idx)
+                if self.offload:
+                    _offload_weights(self, boot_idx)
 
-            del WDT_pd
-            WDT = _weight_predict(self, WDT_pl)
-            _weight_bind(self, WDT)
-            self.weight_stats = _weight_stats(self)
+                del WDT_pd
+                WDT = _weight_predict(self, WDT_pl)
+                if self.weight_preexpansion and boot_idx is None:
+                    self._main_weight_WDT = WDT
+                _weight_bind(self, WDT)
+                self.weight_stats = _weight_stats(self)
 
         is_boot = boot_idx is not None
         start = getattr(self, "_outcome_start_params", None) if is_boot else None
