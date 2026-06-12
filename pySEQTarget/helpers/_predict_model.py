@@ -41,14 +41,22 @@ def _safe_predict(model, data, clip_probs=True):
     return probs
 
 
-def _predict_model(self, model, newdata):
-    newdata = newdata.to_pandas()
+def _prep_predict_frame(self, newdata):
+    """Convert a polars frame to pandas with fixed_cols cast to category.
 
-    # Original behavior - convert fixed_cols to category
+    Split out from _predict_model so callers predicting with several models on
+    the same rows (e.g. numerator + denominator in _weight_predict) can pay
+    the conversion once and share the frame.
+    """
+    newdata = newdata.to_pandas()
     for col in self.fixed_cols:
         if col in newdata.columns:
             newdata[col] = newdata[col].astype("category")
+    return newdata
 
+
+def _predict_model_pd(model, newdata):
+    """Predict on an already-prepared pandas frame, with category fix retry."""
     try:
         return np.array(model.predict(newdata))
     except Exception as e:
@@ -57,3 +65,7 @@ def _predict_model(self, model, newdata):
             return np.array(model.predict(newdata))
         else:
             raise
+
+
+def _predict_model(self, model, newdata):
+    return _predict_model_pd(model, _prep_predict_frame(self, newdata))
