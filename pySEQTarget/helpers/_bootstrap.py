@@ -111,6 +111,29 @@ def _bootstrap_worker(obj, method_name, original_DT, i, seed, args, kwargs):
     return result
 
 
+# Process-pool worker state for the parallel bootstrap fit. Set once per
+# worker process by the initializer so each task ships only the replicate
+# index — not the (slimmed) SEQuential object or the full analysis frame,
+# which previously crossed the process boundary once per task.
+_FIT_WORKER_OBJ = None
+_FIT_WORKER_DATA = None
+_FIT_WORKER_CALL = None
+
+
+def _fit_pool_init(obj, data_ref, method_name, seed, args, kwargs):
+    global _FIT_WORKER_OBJ, _FIT_WORKER_DATA, _FIT_WORKER_CALL
+    _FIT_WORKER_OBJ = obj
+    _FIT_WORKER_DATA = obj._offloader.load_dataframe(data_ref)
+    _FIT_WORKER_CALL = (method_name, seed, args, kwargs)
+
+
+def _fit_pool_task(i):
+    method_name, seed, args, kwargs = _FIT_WORKER_CALL
+    return _bootstrap_worker(
+        _FIT_WORKER_OBJ, method_name, _FIT_WORKER_DATA, i, seed, args, kwargs
+    )
+
+
 def bootstrap_loop(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
@@ -150,19 +173,13 @@ def bootstrap_loop(method):
                 self._rng = None
                 self.DT = None
 
-                with ProcessPoolExecutor(max_workers=ncores) as executor:
+                with ProcessPoolExecutor(
+                    max_workers=ncores,
+                    initializer=_fit_pool_init,
+                    initargs=(self, original_DT_ref, method_name, seed, args, kwargs),
+                ) as executor:
                     futures = {
-                        executor.submit(
-                            _bootstrap_worker,
-                            self,
-                            method_name,
-                            original_DT_ref,
-                            i,
-                            seed,
-                            args,
-                            kwargs,
-                        ): i
-                        for i in range(nboot)
+                        executor.submit(_fit_pool_task, i): i for i in range(nboot)
                     }
                     skipped = 0
                     boot_sample_idx = []
