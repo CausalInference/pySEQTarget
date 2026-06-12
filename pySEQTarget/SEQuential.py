@@ -389,6 +389,14 @@ class SEQuential:
         """
         start = time.perf_counter()
 
+        if self.method == "dose-response":
+            raise NotImplementedError(
+                "Hazard ratio estimation is not supported for method='dose-response': "
+                "the counterfactual simulation only sets the baseline treatment, but "
+                "the dose-response outcome model depends on the cumulative dose, so "
+                "both arms would simulate identical outcomes (HR ≈ 1)."
+            )
+
         if not hasattr(self, "outcome_model") or not self.outcome_model:
             raise ValueError(
                 "Outcome model not found. Please run the 'fit' method before calculating hazard ratio."

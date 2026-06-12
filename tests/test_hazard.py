@@ -119,3 +119,36 @@ def test_hazard_survives_skipped_bootstrap_replicate(monkeypatch):
     assert hr["Hazard ratio"][0] is not None and np.isfinite(hr["Hazard ratio"][0])
     assert hr["LCI"][0] is not None
     assert hr["UCI"][0] is not None
+
+
+def _dose_response_model(**opts):
+    return SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="dose-response",
+        parameters=SEQopts(weighted=True, weight_preexpansion=True, **opts),
+    )
+
+
+def test_dose_response_hazard_estimate_rejected_at_construction():
+    # The counterfactual hazard simulation only sets the baseline treatment,
+    # but the dose-response outcome model depends on cumulative dose — both
+    # arms would simulate identical outcomes and the HR would silently be ~1.
+    with pytest.raises(ValueError, match="dose-response"):
+        _dose_response_model(hazard_estimate=True)
+
+
+def test_dose_response_hazard_call_rejected():
+    # hazard() can be called regardless of the hazard_estimate flag, so the
+    # method itself must refuse too.
+    s = _dose_response_model()
+    s.expand()
+    s.fit()
+    with pytest.raises(NotImplementedError, match="dose-response"):
+        s.hazard()
