@@ -83,6 +83,7 @@ dev = [
     "sphinx",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
+    "tabulate",
 ]
 
 [tool.setuptools.packages.find]

@@ -72,7 +72,10 @@ class SEQoutput:
         plt.show()
 
     def summary(
-        self, type=Optional[Literal["numerator", "denominator", "outcome", "compevent"]]
+        self,
+        type: Optional[
+            Literal["numerator", "denominator", "outcome", "compevent"]
+        ] = None,
     ) -> List:
         """
         Returns a list of model summaries of either the numerator, denominator, outcome, or competing event models
@@ -109,7 +112,7 @@ class SEQoutput:
 
     def retrieve_data(
         self,
-        type=Optional[
+        type: Optional[
             Literal[
                 "km_data",
                 "hazard",
@@ -124,7 +127,7 @@ class SEQoutput:
                 "unique_switches",
                 "nonunique_switches",
             ]
-        ],
+        ] = None,
     ) -> pl.DataFrame:
         """
         Getter for data stored within ``SEQoutput``

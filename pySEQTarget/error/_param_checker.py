@@ -51,7 +51,8 @@ def _param_checker(self):
 
     if sum([self.followup_class, self.followup_include, self.followup_spline]) > 1:
         raise ValueError(
-            "Only one of followup_class or followup_include can be set to True."
+            "Only one of followup_class, followup_include, or followup_spline "
+            "can be set to True."
         )
 
     if self.followup_spline_df < 2:
