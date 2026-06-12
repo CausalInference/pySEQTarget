@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 from statsmodels.base.wrapper import ResultsWrapper
 
-from .helpers import _build_md, _build_pdf
+from .helpers import Offloader, _build_md, _build_pdf
 from .SEQopts import SEQopts
 
 
@@ -90,7 +90,22 @@ class SEQoutput:
             case _:
                 models = self.outcome_models
 
-        return [model.summary() for model in models if model is not None]
+        if models is None:
+            return []
+
+        # Under offload=True the stored entries are path refs; load them back.
+        loader = None
+        if self.options is not None and self.options.offload:
+            loader = Offloader(enabled=True, dir=self.options.offload_dir)
+
+        summaries = []
+        for model in models:
+            if model is None:
+                continue
+            if loader is not None:
+                model = loader.load_model(model)
+            summaries.append(model.summary())
+        return summaries
 
     def retrieve_data(
         self,

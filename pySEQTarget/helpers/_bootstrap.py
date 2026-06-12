@@ -185,12 +185,12 @@ def bootstrap_loop(method):
                 self._rng = original_rng
                 self.DT = self._offloader.load_dataframe(original_DT_ref)
             else:
-                # Keep original data in memory if offloading is disabled to avoid unnecessary I/O
+                # original_DT_ref already holds the parquet ref (offload on) or
+                # the frame itself (offload off) from the save above — don't
+                # write the parquet a second time. With offload on, drop the
+                # in-memory frame; replicates reload from the ref.
                 if self._offloader.enabled:
-                    original_DT_ref = self._offloader.save_dataframe(original_DT, "_DT")
                     del original_DT
-                else:
-                    original_DT_ref = original_DT
 
                 skipped = 0
                 boot_sample_idx = []
