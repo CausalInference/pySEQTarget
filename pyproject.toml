@@ -76,6 +76,7 @@ Repository = "https://github.com/CausalInference/pySEQTarget"
 dev = [
     "black",
     "isort",
+    "jax",
     "pytest",
     "myst-parser",
     "piccolo_theme",
