@@ -255,11 +255,16 @@ def _fit_glum(formula, data, var_weights=None, start_params=None, design_cache=N
     glm.fit(X_arr, y_arr, **fit_kwargs)
 
     # Keep a minimal reference frame so the (unpicklable) design_info can be
-    # rebuilt on unpickle. Two rows suffice: patsy derives categorical contrasts
-    # from each column's full dtype categories, not the observed values, and the
-    # codebase uses only stateless transforms (precomputed squares, explicit-knot
-    # splines), so no fit-time state needs preserving.
-    ref_frame = data.head(2).copy()
+    # rebuilt on unpickle. Two rows suffice ONLY when each categorical factor's
+    # full, ordered level set lives in the column dtype — patsy derives the
+    # contrasts from pd.Categorical dtype categories, but for plain string
+    # columns it falls back to the observed values, and two rows rarely cover
+    # every level. Freeze the design's levels into the frame's dtypes so the
+    # re-parse reproduces the frozen column structure regardless of source
+    # dtype. (The codebase uses only stateless transforms — precomputed
+    # squares, explicit-knot splines — so no other fit-time state needs
+    # preserving.)
+    ref_frame = _align_categories(design_info, data.head(2).copy())
     return _GlumFit(
         glm,
         design_info,

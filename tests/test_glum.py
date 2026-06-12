@@ -435,3 +435,73 @@ def test_glum_warm_start_dropped_when_design_columns_mismatch():
     assert list(bogus_fit.params.values) == approx(
         list(ref.params.values), rel=1e-8, abs=1e-12
     )
+
+
+def test_glum_pickle_with_plain_string_covariate():
+    # ref_frame is data.head(2): for a plain object/string column patsy derives
+    # the categorical levels from the OBSERVED values, so two rows cannot cover
+    # a 4-level factor and the unpickle column check used to fail with
+    # RuntimeError. The design's levels must be frozen into the reference
+    # frame's dtypes instead.
+    import pickle
+
+    import numpy as np
+    import pandas as pd
+
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 2000
+    levels = ["a", "b", "c", "d"]
+    # First two rows share one level so head(2) observes a strict subset
+    grp = ["a", "a"] + list(rng.choice(levels, n - 2))
+    df = pd.DataFrame(
+        {
+            "grp": grp,  # plain object dtype, NOT pd.Categorical
+            "x": rng.standard_normal(n),
+            "y": (rng.random(n) < 0.4).astype(int),
+        }
+    )
+
+    m = _fit_glum("y ~ grp + x", df)
+    m2 = pickle.loads(pickle.dumps(m))
+
+    assert list(m2.params) == approx(list(m.params), rel=1e-12, abs=1e-12)
+    assert list(m2.predict(df)) == approx(list(m.predict(df)), rel=1e-10, abs=1e-12)
+
+
+def test_glum_offload_with_string_time_varying_covariate():
+    # End-to-end: offload=True round-trips the weight models through joblib.
+    # A plain string time-varying covariate in the denominator formula must
+    # survive the pickle/unpickle cycle.
+    import polars as pl
+
+    data = load_data("SEQdata").with_columns(
+        pl.when(pl.col("P") < 9)
+        .then(pl.lit("low"))
+        .when(pl.col("P") < 10)
+        .then(pl.lit("mid"))
+        .otherwise(pl.lit("high"))
+        .alias("P_grp")
+    )
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P_grp"],
+        fixed_cols=["sex"],
+        method="censoring",
+        parameters=SEQopts(
+            glm_package="glum",
+            weighted=True,
+            weight_preexpansion=True,
+            offload=True,
+            seed=42,
+        ),
+    )
+    s.expand()
+    s.fit()
+    assert s.DT["weight"].is_finite().all()
