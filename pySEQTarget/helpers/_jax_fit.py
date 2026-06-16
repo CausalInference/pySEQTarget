@@ -25,6 +25,16 @@ class _JaxFit:
         self._design_info = design_info
         self._feature_names = feature_names
         self._X_design = X_mat.values
+        self._nobs = X_mat.shape[0]
+        # Lazily-filled coefficient covariance cache: lets __getstate__ drop the
+        # full design matrix while keeping bse/summary working after unpickle.
+        self._cov_cached = None
+        # Inputs to rebuild ``design_info`` on unpickle: patsy DesignInfo cannot
+        # be pickled (patsy #26), so keep the formula plus a tiny reference
+        # frame (which preserves each categorical column's full, ordered dtype
+        # categories) and re-parse on __setstate__. Mirrors _GlumFit.
+        self._formula = formula
+        self._ref_frame = df_pd.head(2).copy()
         X_arr = X_mat.drop(columns=["Intercept"], errors="ignore").values
 
         y_raw = y_mat.values.ravel()
@@ -51,12 +61,46 @@ class _JaxFit:
         )
 
         # statsmodels 'like' exposure
+        self._build_model_namespace(design_info, feature_names)
+        self.exog_names = feature_names
+        self.params = self._build_params()
+
+    def _build_model_namespace(self, design_info, feature_names):
         self.model = types.SimpleNamespace(
             exog_names=feature_names,
             data=types.SimpleNamespace(design_info=design_info),
         )
-        self.exog_names = feature_names
-        self.params = self._build_params()
+
+    def __getstate__(self):
+        # Drop the unpicklable patsy DesignInfo and the SimpleNamespaces that
+        # reference it; __setstate__ rebuilds them from the formula + ref_frame.
+        state = self.__dict__.copy()
+        state.pop("_design_info", None)
+        state.pop("model", None)
+        # Replace the full design matrix with the small cached covariance so
+        # the pickled model stays lightweight. Covariance is only implemented
+        # for binary fits; multiclass keeps None (bse raises either way).
+        if state.get("_cov_cached") is None and self._n_classes == 2:
+            state["_cov_cached"] = self.cov_params()
+        state["_X_design"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        _, X_mat = patsy.dmatrices(
+            self._formula, self._ref_frame, return_type="dataframe"
+        )
+        if list(X_mat.columns) != list(self._feature_names):
+            # The reference frame's categorical ordering must reproduce the
+            # frozen column structure exactly, or the coefficients would pair
+            # with the wrong design columns on predict. Fail loudly rather
+            # than return silently wrong predictions.
+            raise RuntimeError(
+                "_JaxFit design columns changed on unpickle: "
+                f"{list(X_mat.columns)} != {list(self._feature_names)}"
+            )
+        self._design_info = X_mat.design_info
+        self._build_model_namespace(self._design_info, self._feature_names)
 
     def _coef_components(self):
         W, b = self._jax.params
@@ -120,12 +164,20 @@ class _JaxFit:
             raise NotImplementedError(
                 "Standard errors are only implemented for binary jax fits."
             )
+        if self._cov_cached is not None:
+            return self._cov_cached
         X = self._X_design
+        if X is None:
+            raise RuntimeError(
+                "cov_params unavailable: design matrix was dropped on pickle "
+                "and no covariance was cached."
+            )
         mu = np.asarray(self._jax.predict(X[:, 1:]))[:, 1]
         w = mu * (1.0 - mu)
         if self._sample_weight is not None:
             w = w * self._sample_weight
-        return np.linalg.pinv(X.T @ (w[:, None] * X))
+        self._cov_cached = np.linalg.pinv(X.T @ (w[:, None] * X))
+        return self._cov_cached
 
     @property
     def bse(self):
@@ -161,7 +213,7 @@ class _JaxFit:
                     "GLM (jax backend)",
                     "Binomial",
                     "logit",
-                    str(self._X_design.shape[0]),
+                    str(self._nobs),
                 ]
             },
             index=["Model:", "Family:", "Link:", "No. Observations:"],

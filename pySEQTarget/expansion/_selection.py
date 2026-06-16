@@ -38,8 +38,10 @@ def _random_selection(self):
         )
         .filter(
             pl.col("trialID").is_in(sample)
-            | pl.col(f"{self.treatment_col}{self.indicator_baseline}")
-            != self.treatment_level[0]
+            | (
+                pl.col(f"{self.treatment_col}{self.indicator_baseline}")
+                != self.treatment_level[0]
+            )
         )
         .drop("trialID")
     )

@@ -2,6 +2,7 @@ import numpy as np
 import polars as pl
 
 from ..helpers import _predict_model
+from ..helpers._predict_model import _predict_model_pd, _prep_predict_frame
 
 
 def _extract_class_probability(p, level_idx, is_binary):
@@ -59,17 +60,22 @@ def _weight_predict(self, WDT):
                 denom_model = self._offloader.load_model(self.denominator_model[i])
                 num_model = self._offloader.load_model(self.numerator_model[i])
 
-                if denom_model is not None and lag_mask.sum() > 0:
-                    subset = WDT.filter(pl.Series(lag_mask))
-                    p = _predict_model(self, denom_model, subset)
+                if (denom_model is None and num_model is None) or lag_mask.sum() == 0:
+                    continue
+
+                # Numerator and denominator predict on the same rows — pay the
+                # filter + pandas conversion once and share the frame.
+                subset_pd = _prep_predict_frame(self, WDT.filter(pl.Series(lag_mask)))
+
+                if denom_model is not None:
+                    p = _predict_model_pd(denom_model, subset_pd)
                     p_class = _extract_class_probability(p, i, is_binary)
                     pred_denom[lag_mask] = np.where(
                         switched_treatment[lag_mask], 1.0 - p_class, p_class
                     )
 
-                if num_model is not None and lag_mask.sum() > 0:
-                    subset = WDT.filter(pl.Series(lag_mask))
-                    p = _predict_model(self, num_model, subset)
+                if num_model is not None:
+                    p = _predict_model_pd(num_model, subset_pd)
                     p_class = _extract_class_probability(p, i, is_binary)
                     pred_num[lag_mask] = np.where(
                         switched_treatment[lag_mask], 1.0 - p_class, p_class
@@ -167,12 +173,17 @@ def _weight_predict(self, WDT):
                     .otherwise(pl.col("numerator"))
                     .alias("numerator")
                 )
+    # Full-frame pandas conversion shared by the cense and visit predictions
+    # (built lazily — only when at least one of those model pairs exists).
+    WDT_pd = None
+
     if self.cense_colname is not None:
         cense_num_model = self._offloader.load_model(self.cense_numerator_model)
         cense_denom_model = self._offloader.load_model(self.cense_denominator_model)
         if cense_num_model is not None and cense_denom_model is not None:
-            p_num = _predict_model(self, cense_num_model, WDT).flatten()
-            p_denom = _predict_model(self, cense_denom_model, WDT).flatten()
+            WDT_pd = _prep_predict_frame(self, WDT)
+            p_num = _predict_model_pd(cense_num_model, WDT_pd).flatten()
+            p_denom = _predict_model_pd(cense_denom_model, WDT_pd).flatten()
             WDT = (
                 WDT.with_columns(
                     [
@@ -196,8 +207,12 @@ def _weight_predict(self, WDT):
         visit_num_model = self._offloader.load_model(self.visit_numerator_model)
         visit_denom_model = self._offloader.load_model(self.visit_denominator_model)
         if visit_num_model is not None and visit_denom_model is not None:
-            p_num = _predict_model(self, visit_num_model, WDT).flatten()
-            p_denom = _predict_model(self, visit_denom_model, WDT).flatten()
+            # The visit formulas don't reference the _cense column added above,
+            # so the frame converted before the cense block is still valid.
+            if WDT_pd is None:
+                WDT_pd = _prep_predict_frame(self, WDT)
+            p_num = _predict_model_pd(visit_num_model, WDT_pd).flatten()
+            p_denom = _predict_model_pd(visit_denom_model, WDT_pd).flatten()
             WDT = (
                 WDT.with_columns(
                     [

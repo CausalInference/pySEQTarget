@@ -64,8 +64,11 @@ class SEQuential:
         self.eligible_col = eligible_col
         self.treatment_col = treatment_col
         self.outcome_col = outcome_col
-        self.time_varying_cols = time_varying_cols
-        self.fixed_cols = fixed_cols
+        # Normalize the documented-Optional covariate lists to [] once, so the
+        # many downstream `for col in self.fixed_cols` / set() sites need no
+        # None guards.
+        self.time_varying_cols = time_varying_cols if time_varying_cols else []
+        self.fixed_cols = fixed_cols if fixed_cols else []
         self.method = method
 
         self._time_initialized = datetime.datetime.now()
@@ -110,6 +113,16 @@ class SEQuential:
 
         _param_checker(self)
         _data_checker(self)
+
+    def __getstate__(self):
+        # The glum design-info cache (_outcome_fit) holds patsy DesignInfo
+        # objects, which can't be pickled (patsy #26). It is a per-process speed
+        # cache rebuilt lazily on first fit, so drop it when crossing a process
+        # boundary (parallel bootstrap / offload); workers repopulate it. Without
+        # this, parallel=True + glm_package="glum" crashes on pickling.
+        state = self.__dict__.copy()
+        state.pop("_patsy_design_cache", None)
+        return state
 
     def expand(self):
         """
@@ -187,6 +200,17 @@ class SEQuential:
         if self.verbose:
             n, m = self.DT.shape
             print(f"Final analysis dataset: {n:,} observations, {m} variables")
+            # Under censoring the outcome model is fit only on the un-censored
+            # rows (switch != 1, matching _outcome_fit); the rest are retained in
+            # the dataset but artificially censored. Report the split so the
+            # count lines up with implementations that print only the modelled
+            # rows (e.g. Stata seqtte).
+            if self.method == "censoring" and "switch" in self.DT.columns:
+                n_censored = self.DT.filter(pl.col("switch") == 1).height
+                print(
+                    f"  entering outcome model (uncensored): {n - n_censored:,}\n"
+                    f"  artificially censored (treatment switch): {n_censored:,}"
+                )
 
         end = time.perf_counter()
         self._expansion_time = _format_time(start, end)
@@ -250,32 +274,50 @@ class SEQuential:
             boot_idx = self._current_boot_idx
 
         if self.weighted:
-            WDT_pl = _weight_setup(self)
-            if not self.weight_preexpansion and not self.excused:
-                WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
+            # With weight_preexpansion the weight models are fit on the
+            # un-resampled pre-expansion data, so every bootstrap replicate
+            # would refit bit-identical models and re-predict identical
+            # weights. Cache the predicted weight frame from the main fit and
+            # reuse it on replicates; only the join onto the resampled DT
+            # (_weight_bind) and the resulting weight stats differ.
+            cached_WDT = (
+                getattr(self, "_main_weight_WDT", None)
+                if boot_idx is not None and self.weight_preexpansion
+                else None
+            )
+            if cached_WDT is not None:
+                _weight_bind(self, cached_WDT)
+                self.weight_stats = _weight_stats(self)
+            else:
+                WDT_pl = _weight_setup(self)
+                if not self.weight_preexpansion and not self.excused:
+                    WDT_pl = WDT_pl.filter(pl.col("followup") > 0)
 
-            # The weight-fit helpers (_fit_LTFU etc.) use pandas-style indexing
-            # and pass pandas frames to glum/statsmodels, so we convert once.
-            # The fits don't mutate WDT_pd - they store models on `self` - so
-            # we keep the original polars frame for the downstream steps
-            # rather than paying a pl.from_pandas() round-trip per replicate.
-            WDT_pd = WDT_pl.to_pandas()
-            for col in self.fixed_cols:
-                if col in WDT_pd.columns:
-                    WDT_pd[col] = WDT_pd[col].astype("category")
+                # The weight-fit helpers (_fit_LTFU etc.) use pandas-style
+                # indexing and pass pandas frames to glum/statsmodels, so we
+                # convert once. The fits don't mutate WDT_pd - they store
+                # models on `self` - so we keep the original polars frame for
+                # the downstream steps rather than paying a pl.from_pandas()
+                # round-trip per replicate.
+                WDT_pd = WDT_pl.to_pandas()
+                for col in self.fixed_cols:
+                    if col in WDT_pd.columns:
+                        WDT_pd[col] = WDT_pd[col].astype("category")
 
-            _fit_LTFU(self, WDT_pd)
-            _fit_visit(self, WDT_pd)
-            _fit_numerator(self, WDT_pd)
-            _fit_denominator(self, WDT_pd)
+                _fit_LTFU(self, WDT_pd)
+                _fit_visit(self, WDT_pd)
+                _fit_numerator(self, WDT_pd)
+                _fit_denominator(self, WDT_pd)
 
-            if self.offload:
-                _offload_weights(self, boot_idx)
+                if self.offload:
+                    _offload_weights(self, boot_idx)
 
-            del WDT_pd
-            WDT = _weight_predict(self, WDT_pl)
-            _weight_bind(self, WDT)
-            self.weight_stats = _weight_stats(self)
+                del WDT_pd
+                WDT = _weight_predict(self, WDT_pl)
+                if self.weight_preexpansion and boot_idx is None:
+                    self._main_weight_WDT = WDT
+                _weight_bind(self, WDT)
+                self.weight_stats = _weight_stats(self)
 
         is_boot = boot_idx is not None
         start = getattr(self, "_outcome_start_params", None) if is_boot else None
@@ -365,6 +407,14 @@ class SEQuential:
         """
         start = time.perf_counter()
 
+        if self.method == "dose-response":
+            raise NotImplementedError(
+                "Hazard ratio estimation is not supported for method='dose-response': "
+                "the counterfactual simulation only sets the baseline treatment, but "
+                "the dose-response outcome model depends on the cumulative dose, so "
+                "both arms would simulate identical outcomes (HR ≈ 1)."
+            )
+
         if not hasattr(self, "outcome_model") or not self.outcome_model:
             raise ValueError(
                 "Outcome model not found. Please run the 'fit' method before calculating hazard ratio."
@@ -429,13 +479,17 @@ class SEQuential:
             "collection_time": self._time_collected,
         }
 
-        if self.compevent_colname is not None:
-            compevent_models = [model["compevent"] for model in self.outcome_model]
-        else:
-            compevent_models = None
-
         if self.outcome_model is not None:
             outcome_models = [model["outcome"] for model in self.outcome_model]
+            if self.compevent_colname is not None:
+                compevent_models = [model["compevent"] for model in self.outcome_model]
+            else:
+                compevent_models = None
+        else:
+            # collect() before fit(): no models to report, but the rest of the
+            # output (diagnostics, timings) is still valid.
+            outcome_models = None
+            compevent_models = None
 
         if self.risk_estimates is None:
             risk_ratio = risk_difference = None

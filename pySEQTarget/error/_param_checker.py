@@ -41,9 +41,18 @@ def _param_checker(self):
     if self.km_curves and self.hazard_estimate:
         raise ValueError("km_curves and hazard cannot both be set to True.")
 
+    if self.hazard_estimate and self.method == "dose-response":
+        raise ValueError(
+            "Hazard ratio estimation is not supported for method='dose-response': "
+            "the counterfactual simulation only sets the baseline treatment, but "
+            "the dose-response outcome model depends on the cumulative dose, so "
+            "both arms would simulate identical outcomes (HR ≈ 1)."
+        )
+
     if sum([self.followup_class, self.followup_include, self.followup_spline]) > 1:
         raise ValueError(
-            "Only one of followup_class or followup_include can be set to True."
+            "Only one of followup_class, followup_include, or followup_spline "
+            "can be set to True."
         )
 
     if self.followup_spline_df < 2:

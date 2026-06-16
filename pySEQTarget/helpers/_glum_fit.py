@@ -40,21 +40,81 @@ class _GlumFit:
     just like statsmodels keeps model.exog, so memory use is comparable.
     """
 
-    def __init__(self, glum_model, design_info, feature_names, X_design, sample_weight):
+    def __init__(
+        self,
+        glum_model,
+        design_info,
+        feature_names,
+        X_design,
+        sample_weight,
+        formula=None,
+        ref_frame=None,
+    ):
         self._glum = glum_model
         self._design_info = design_info
         self._X_design = X_design  # includes the intercept column
+        self._nobs = X_design.shape[0]
         self._sample_weight = sample_weight
+        # Lazily-filled cache of the (small) coefficient covariance matrix. It
+        # lets __getstate__ drop the full design matrix (_X_design can be 100s
+        # of MB) while keeping bse/summary working after unpickle — important
+        # for the process pool and offload, which ship many fitted models.
+        self._cov_cached = None
+        # Inputs to rebuild ``design_info`` on unpickle: the patsy DesignInfo
+        # itself cannot be pickled (patsy #26), so we keep the formula and a
+        # tiny reference frame (which preserves each categorical column's full,
+        # ordered dtype categories) and re-parse on __setstate__.
+        self._formula = formula
+        self._ref_frame = ref_frame
 
-        self.model = types.SimpleNamespace(
-            exog_names=feature_names,
-            data=types.SimpleNamespace(design_info=design_info),
-        )
+        self._build_model_namespace(design_info, feature_names)
         self.exog_names = feature_names
 
         # statsmodels convention: intercept first
         all_coefs = np.concatenate([[glum_model.intercept_], glum_model.coef_])
         self.params = pd.Series(all_coefs, index=feature_names)
+
+    def _build_model_namespace(self, design_info, feature_names):
+        self.model = types.SimpleNamespace(
+            exog_names=feature_names,
+            data=types.SimpleNamespace(design_info=design_info),
+        )
+
+    def __getstate__(self):
+        # Drop the unpicklable patsy DesignInfo and the SimpleNamespaces that
+        # reference it; __setstate__ rebuilds them from the formula + ref_frame.
+        state = self.__dict__.copy()
+        state.pop("_design_info", None)
+        state.pop("model", None)
+        # Replace the full design matrix with the small cached covariance so the
+        # pickled model stays lightweight (the design matrix can be 100s of MB).
+        # bse/summary still work via _cov_cached; predict never needs _X_design.
+        if state.get("_cov_cached") is None:
+            state["_cov_cached"] = self.cov_params()
+        state["_X_design"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if self._formula is None or self._ref_frame is None:
+            raise RuntimeError(
+                "Cannot unpickle _GlumFit fitted before formula/ref_frame were "
+                "recorded; refit with the current pySEQTarget version."
+            )
+        _, X_mat = patsy.dmatrices(
+            self._formula, self._ref_frame, return_type="dataframe"
+        )
+        if list(X_mat.columns) != list(self.exog_names):
+            # The reference frame's categorical ordering must reproduce the
+            # frozen column structure exactly, or glum's coefficients would be
+            # paired with the wrong design columns on predict. Fail loudly
+            # rather than return silently wrong predictions.
+            raise RuntimeError(
+                "_GlumFit design columns changed on unpickle: "
+                f"{list(X_mat.columns)} != {list(self.exog_names)}"
+            )
+        self._design_info = X_mat.design_info
+        self._build_model_namespace(self._design_info, self.exog_names)
 
     def predict(self, data, transform=True):
         if transform:
@@ -69,12 +129,20 @@ class _GlumFit:
         return self._glum.predict(X_arr)
 
     def cov_params(self):
+        if self._cov_cached is not None:
+            return self._cov_cached
         X = self._X_design
+        if X is None:
+            raise RuntimeError(
+                "cov_params unavailable: design matrix was dropped on pickle and "
+                "no covariance was cached."
+            )
         mu = self._glum.predict(X[:, 1:])
         w = mu * (1.0 - mu)
         if self._sample_weight is not None:
             w = w * np.asarray(self._sample_weight)
-        return np.linalg.pinv(X.T @ (w[:, None] * X))
+        self._cov_cached = np.linalg.pinv(X.T @ (w[:, None] * X))
+        return self._cov_cached
 
     @property
     def bse(self):
@@ -110,7 +178,7 @@ class _GlumFit:
                     "GLM (glum backend)",
                     "Binomial",
                     "logit",
-                    str(self._X_design.shape[0]),
+                    str(self._nobs),
                 ]
             },
             index=["Model:", "Family:", "Link:", "No. Observations:"],
@@ -185,4 +253,24 @@ def _fit_glum(formula, data, var_weights=None, start_params=None, design_cache=N
         fit_kwargs["sample_weight"] = sample_weight
 
     glm.fit(X_arr, y_arr, **fit_kwargs)
-    return _GlumFit(glm, design_info, feature_names, X_design, sample_weight)
+
+    # Keep a minimal reference frame so the (unpicklable) design_info can be
+    # rebuilt on unpickle. Two rows suffice ONLY when each categorical factor's
+    # full, ordered level set lives in the column dtype — patsy derives the
+    # contrasts from pd.Categorical dtype categories, but for plain string
+    # columns it falls back to the observed values, and two rows rarely cover
+    # every level. Freeze the design's levels into the frame's dtypes so the
+    # re-parse reproduces the frozen column structure regardless of source
+    # dtype. (The codebase uses only stateless transforms — precomputed
+    # squares, explicit-knot splines — so no other fit-time state needs
+    # preserving.)
+    ref_frame = _align_categories(design_info, data.head(2).copy())
+    return _GlumFit(
+        glm,
+        design_info,
+        feature_names,
+        X_design,
+        sample_weight,
+        formula=formula,
+        ref_frame=ref_frame,
+    )

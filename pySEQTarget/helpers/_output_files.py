@@ -12,6 +12,19 @@ def _build_md(self, img_path: str = None) -> str:
 
     lines = []
 
+    def _model_section(title, kind):
+        # SEQoutput.summary handles absent model lists (e.g. no numerator
+        # models under weighted ITT) and loads offloaded path refs.
+        summaries = self.summary(kind)
+        if not summaries:
+            return
+        lines.append(f"### {title}")
+        lines.append("")
+        lines.append("```")
+        lines.append(str(summaries[0]))
+        lines.append("```")
+        lines.append("")
+
     lines.append(f"# SEQuential Analysis: {datetime.date.today()}: {self.method}")
     lines.append("")
 
@@ -19,42 +32,22 @@ def _build_md(self, img_path: str = None) -> str:
         lines.append("## Weighting")
         lines.append("")
 
-        lines.append("### Numerator Model")
-        lines.append("")
-        lines.append("```")
-        lines.append(str(self.numerator_models[0].summary()))
-        lines.append("```")
-        lines.append("")
+        _model_section("Numerator Model", "numerator")
+        _model_section("Denominator Model", "denominator")
 
-        lines.append("### Denominator Model")
-        lines.append("")
-        lines.append("```")
-        lines.append(str(self.denominator_models[0].summary()))
-        lines.append("```")
-        lines.append("")
+        if self.options.compevent_colname is not None:
+            _model_section("Competing Event Model", "compevent")
 
-        if self.options.compevent_colname is not None and self.compevent_models:
-            lines.append("### Competing Event Model")
+        if self.weight_statistics is not None:
+            lines.append("### Weighting Statistics")
             lines.append("")
-            lines.append("```")
-            lines.append(str(self.compevent_models[0].summary()))
-            lines.append("```")
+            lines.append(self.weight_statistics.to_pandas().to_markdown(index=False))
             lines.append("")
-
-        lines.append("### Weighting Statistics")
-        lines.append("")
-        lines.append(self.weight_statistics.to_pandas().to_markdown(index=False))
-        lines.append("")
 
     lines.append("## Outcome")
     lines.append("")
 
-    lines.append("### Outcome Model")
-    lines.append("")
-    lines.append("```")
-    lines.append(str(self.outcome_models[0].summary()))
-    lines.append("```")
-    lines.append("")
+    _model_section("Outcome Model", "outcome")
 
     if self.options.hazard_estimate and self.hazard is not None:
         lines.append("### Hazard")
@@ -85,10 +78,26 @@ def _build_md(self, img_path: str = None) -> str:
             lines.append("")
 
     if self.diagnostic_tables:
+        # Clarify what each unique/nonunique table actually counts, so the
+        # rendered headings are not ambiguous (see SEQoutput.retrieve_data).
+        diag_descriptions = {
+            "unique_outcomes": "distinct subjects who had the outcome",
+            "nonunique_outcomes": "total outcome events",
+            "unique_followup": "distinct subjects contributing follow-up",
+            "nonunique_followup": "person-time intervals",
+            "unique_compevent": "distinct subjects with a competing event",
+            "nonunique_compevent": "total competing-event intervals",
+            "unique_switches": "distinct subjects who switched",
+            "nonunique_switches": "total switch intervals",
+        }
         lines.append("## Diagnostic Tables")
         lines.append("")
         for name, table in self.diagnostic_tables.items():
-            lines.append(f"### {name.replace('_', ' ').title()}")
+            heading = name.replace("_", " ").title()
+            description = diag_descriptions.get(name)
+            if description:
+                heading = f"{heading} ({description})"
+            lines.append(f"### {heading}")
             lines.append("")
             lines.append(table.to_pandas().to_markdown(index=False))
             lines.append("")

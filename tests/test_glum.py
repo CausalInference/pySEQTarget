@@ -358,6 +358,57 @@ def test_glum_design_cache_handles_categorical_level_reordering():
     assert list(mb.params.index) == list(m.params.index)
 
 
+def test_glum_model_pickle_roundtrip_preserves_predictions():
+    # _GlumFit holds a patsy DesignInfo, which cannot be pickled (patsy #26).
+    # It must rebuild the DesignInfo on unpickle from the stored formula +
+    # reference frame so fitted models can cross a process boundary (parallel
+    # bootstrap, offload). The roundtrip must preserve params and predictions
+    # exactly and yield a usable design_info.
+    import pickle
+
+    import numpy as np
+    import pandas as pd
+
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 500
+    df = pd.DataFrame(
+        {
+            "y": (rng.random(n) < 0.4).astype(int),
+            "x": rng.standard_normal(n),
+            "g": pd.Categorical(
+                rng.choice(["a", "b", "c"], n), categories=["a", "b", "c"]
+            ),
+        }
+    )
+
+    m = _fit_glum("y ~ x + g", df)
+    pred = m.predict(df)
+
+    m2 = pickle.loads(pickle.dumps(m))
+
+    assert list(m2.params.index) == list(m.params.index)
+    assert list(m2.params.values) == approx(list(m.params.values), rel=1e-12, abs=1e-12)
+    assert list(m2.exog_names) == list(m.exog_names)
+    # design_info is rebuilt and reproduces the frozen column structure
+    assert list(m2.model.data.design_info.column_names) == list(
+        m.model.data.design_info.column_names
+    )
+    # predictions are bit-identical through both predict paths. The design
+    # matrix is an external input (the unpickled model drops its own _X_design
+    # to stay lightweight), so feed the original to both for the transform=False
+    # path.
+    np.testing.assert_array_equal(m2.predict(df), pred)
+    np.testing.assert_array_equal(
+        m2.predict(m._X_design, transform=False),
+        m.predict(m._X_design, transform=False),
+    )
+    # bse still works after unpickle even though _X_design was dropped (cached cov)
+    assert m2._X_design is None
+    np.testing.assert_allclose(m2.bse.values, m.bse.values, rtol=0, atol=0)
+
+
 def test_glum_warm_start_dropped_when_design_columns_mismatch():
     # The defensive guard in _fit_glum: a (values, names) tuple whose names
     # don't line up with the patsy design matrix must be ignored, falling back
@@ -384,3 +435,73 @@ def test_glum_warm_start_dropped_when_design_columns_mismatch():
     assert list(bogus_fit.params.values) == approx(
         list(ref.params.values), rel=1e-8, abs=1e-12
     )
+
+
+def test_glum_pickle_with_plain_string_covariate():
+    # ref_frame is data.head(2): for a plain object/string column patsy derives
+    # the categorical levels from the OBSERVED values, so two rows cannot cover
+    # a 4-level factor and the unpickle column check used to fail with
+    # RuntimeError. The design's levels must be frozen into the reference
+    # frame's dtypes instead.
+    import pickle
+
+    import numpy as np
+    import pandas as pd
+
+    from pySEQTarget.helpers._glum_fit import _fit_glum
+
+    rng = np.random.default_rng(0)
+    n = 2000
+    levels = ["a", "b", "c", "d"]
+    # First two rows share one level so head(2) observes a strict subset
+    grp = ["a", "a"] + list(rng.choice(levels, n - 2))
+    df = pd.DataFrame(
+        {
+            "grp": grp,  # plain object dtype, NOT pd.Categorical
+            "x": rng.standard_normal(n),
+            "y": (rng.random(n) < 0.4).astype(int),
+        }
+    )
+
+    m = _fit_glum("y ~ grp + x", df)
+    m2 = pickle.loads(pickle.dumps(m))
+
+    assert list(m2.params) == approx(list(m.params), rel=1e-12, abs=1e-12)
+    assert list(m2.predict(df)) == approx(list(m.predict(df)), rel=1e-10, abs=1e-12)
+
+
+def test_glum_offload_with_string_time_varying_covariate():
+    # End-to-end: offload=True round-trips the weight models through joblib.
+    # A plain string time-varying covariate in the denominator formula must
+    # survive the pickle/unpickle cycle.
+    import polars as pl
+
+    data = load_data("SEQdata").with_columns(
+        pl.when(pl.col("P") < 9)
+        .then(pl.lit("low"))
+        .when(pl.col("P") < 10)
+        .then(pl.lit("mid"))
+        .otherwise(pl.lit("high"))
+        .alias("P_grp")
+    )
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P_grp"],
+        fixed_cols=["sex"],
+        method="censoring",
+        parameters=SEQopts(
+            glm_package="glum",
+            weighted=True,
+            weight_preexpansion=True,
+            offload=True,
+            seed=42,
+        ),
+    )
+    s.expand()
+    s.fit()
+    assert s.DT["weight"].is_finite().all()

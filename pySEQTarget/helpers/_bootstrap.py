@@ -10,6 +10,22 @@ from tqdm import tqdm
 
 from ._format_time import _format_time
 
+# Side-effect attributes set by the main fit that bootstrap replicates overwrite
+# when they run in-process (the serial path: each replicate calls the fit body
+# again, and _fit_numerator/_fit_denominator do `self.X_model = fits`). Snapshot
+# them after the main fit and restore after the replicate loop so summaries
+# reflect the main fit, not the last replicate. The parallel path already keeps
+# them (replicates run in worker copies), so restore is a no-op there.
+_MAIN_FIT_ATTRS = (
+    "numerator_model",
+    "denominator_model",
+    "cense_numerator_model",
+    "cense_denominator_model",
+    "visit_numerator_model",
+    "visit_denominator_model",
+    "weight_stats",
+)
+
 
 def _prepare_boot_data(self, data, boot_id):
     id_counts = self._boot_samples[boot_id]
@@ -80,10 +96,42 @@ def _bootstrap_worker(obj, method_name, original_DT, i, seed, args, kwargs):
     # Disable bootstrapping to prevent recursion
     obj.bootstrap_nboot = 0
 
+    # Call the raw, undecorated fit body — not the @bootstrap_loop-wrapped
+    # method — so it returns this replicate's single model dict. Going through
+    # the wrapper would re-enter bootstrap_loop and return a list ([model_dict]),
+    # which the serial path never does, breaking the hazard/survival consumers
+    # that index outcome_model[i]["outcome"].
     method = getattr(obj, method_name)
-    result = method(*args, **kwargs)
+    raw = getattr(method, "__wrapped__", None)
+    if raw is not None:
+        result = raw(obj, *args, **kwargs)
+    else:
+        result = method(*args, **kwargs)
     obj._rng = None
     return result
+
+
+# Process-pool worker state for the parallel bootstrap fit. Set once per
+# worker process by the initializer so each task ships only the replicate
+# index — not the (slimmed) SEQuential object or the full analysis frame,
+# which previously crossed the process boundary once per task.
+_FIT_WORKER_OBJ = None
+_FIT_WORKER_DATA = None
+_FIT_WORKER_CALL = None
+
+
+def _fit_pool_init(obj, data_ref, method_name, seed, args, kwargs):
+    global _FIT_WORKER_OBJ, _FIT_WORKER_DATA, _FIT_WORKER_CALL
+    _FIT_WORKER_OBJ = obj
+    _FIT_WORKER_DATA = obj._offloader.load_dataframe(data_ref)
+    _FIT_WORKER_CALL = (method_name, seed, args, kwargs)
+
+
+def _fit_pool_task(i):
+    method_name, seed, args, kwargs = _FIT_WORKER_CALL
+    return _bootstrap_worker(
+        _FIT_WORKER_OBJ, method_name, _FIT_WORKER_DATA, i, seed, args, kwargs
+    )
 
 
 def bootstrap_loop(method):
@@ -104,6 +152,12 @@ def bootstrap_loop(method):
         full = method(self, *args, **kwargs)
         results.append(full)
 
+        # Snapshot the main-fit weight models before any in-process replicate
+        # can overwrite them; restored just before returning.
+        main_fit_state = {
+            attr: getattr(self, attr) for attr in _MAIN_FIT_ATTRS if hasattr(self, attr)
+        }
+
         if getattr(self, "bootstrap_nboot") > 0 and getattr(
             self, "_boot_samples", None
         ):
@@ -119,19 +173,13 @@ def bootstrap_loop(method):
                 self._rng = None
                 self.DT = None
 
-                with ProcessPoolExecutor(max_workers=ncores) as executor:
+                with ProcessPoolExecutor(
+                    max_workers=ncores,
+                    initializer=_fit_pool_init,
+                    initargs=(self, original_DT_ref, method_name, seed, args, kwargs),
+                ) as executor:
                     futures = {
-                        executor.submit(
-                            _bootstrap_worker,
-                            self,
-                            method_name,
-                            original_DT_ref,
-                            i,
-                            seed,
-                            args,
-                            kwargs,
-                        ): i
-                        for i in range(nboot)
+                        executor.submit(_fit_pool_task, i): i for i in range(nboot)
                     }
                     skipped = 0
                     boot_sample_idx = []
@@ -154,12 +202,12 @@ def bootstrap_loop(method):
                 self._rng = original_rng
                 self.DT = self._offloader.load_dataframe(original_DT_ref)
             else:
-                # Keep original data in memory if offloading is disabled to avoid unnecessary I/O
+                # original_DT_ref already holds the parquet ref (offload on) or
+                # the frame itself (offload off) from the save above — don't
+                # write the parquet a second time. With offload on, drop the
+                # in-memory frame; replicates reload from the ref.
                 if self._offloader.enabled:
-                    original_DT_ref = self._offloader.save_dataframe(original_DT, "_DT")
                     del original_DT
-                else:
-                    original_DT_ref = original_DT
 
                 skipped = 0
                 boot_sample_idx = []
@@ -204,6 +252,11 @@ def bootstrap_loop(method):
 
             end = time.perf_counter()
             self._model_time = _format_time(start, end)
+
+        # Restore the main-fit weight models so numerator/denominator summaries
+        # reflect the main fit rather than the last in-process replicate.
+        for attr, value in main_fit_state.items():
+            setattr(self, attr, value)
 
         self.outcome_model = results
         return results

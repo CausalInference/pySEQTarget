@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 from statsmodels.base.wrapper import ResultsWrapper
 
-from .helpers import _build_md, _build_pdf
+from .helpers import Offloader, _build_md, _build_pdf
 from .SEQopts import SEQopts
 
 
@@ -41,7 +41,13 @@ class SEQoutput:
     :type risk_difference: pl.DataFrame or None
     :param time: Timings for every step of the process completed thus far
     :type time: dict or None
-    :param diagnostic_tables: Diagnostic tables for unique and nonunique outcome events and treatment switches
+    :param diagnostic_tables: Diagnostic tables (outcome, follow-up, switch, and
+        competing-event counts where applicable), each split by baseline treatment
+        arm. The "unique" tables count distinct subjects; the "nonunique" tables
+        count rows: total outcome events for the outcome tables, and total
+        person-time intervals (expanded follow-up rows) for the follow-up tables.
+        For a one-time (terminal) outcome the unique and nonunique outcome counts
+        coincide, since each subject contributes at most one event row.
     :type diagnostic_tables: dict or None
     """
 
@@ -72,7 +78,10 @@ class SEQoutput:
         plt.show()
 
     def summary(
-        self, type=Optional[Literal["numerator", "denominator", "outcome", "compevent"]]
+        self,
+        type: Optional[
+            Literal["numerator", "denominator", "outcome", "compevent"]
+        ] = None,
     ) -> List:
         """
         Returns a list of model summaries of either the numerator, denominator, outcome, or competing event models
@@ -90,11 +99,26 @@ class SEQoutput:
             case _:
                 models = self.outcome_models
 
-        return [model.summary() for model in models if model is not None]
+        if models is None:
+            return []
+
+        # Under offload=True the stored entries are path refs; load them back.
+        loader = None
+        if self.options is not None and self.options.offload:
+            loader = Offloader(enabled=True, dir=self.options.offload_dir)
+
+        summaries = []
+        for model in models:
+            if model is None:
+                continue
+            if loader is not None:
+                model = loader.load_model(model)
+            summaries.append(model.summary())
+        return summaries
 
     def retrieve_data(
         self,
-        type=Optional[
+        type: Optional[
             Literal[
                 "km_data",
                 "hazard",
@@ -109,10 +133,23 @@ class SEQoutput:
                 "unique_switches",
                 "nonunique_switches",
             ]
-        ],
+        ] = None,
     ) -> pl.DataFrame:
         """
         Getter for data stored within ``SEQoutput``
+
+        The diagnostic tables come in "unique" and "nonunique" variants that count
+        different things, each broken down by baseline treatment arm:
+
+        - ``unique_outcomes`` / ``nonunique_outcomes``: distinct subjects who had
+          the outcome vs. the total number of outcome events. These coincide for a
+          one-time (terminal) outcome, since each subject contributes at most one
+          event row.
+        - ``unique_followup`` / ``nonunique_followup``: distinct subjects
+          contributing follow-up vs. the total number of person-time intervals
+          (expanded rows). The nonunique count is much larger because each subject
+          contributes one row per follow-up period; it is the denominator that,
+          with ``nonunique_outcomes``, gives the per-arm event rate.
 
         :param type: Data which you would like to access, ['km_data', 'hazard',
             'risk_ratio', 'risk_difference', 'unique_outcomes',
@@ -141,19 +178,13 @@ class SEQoutput:
             case "nonunique_compevent":
                 data = self.diagnostic_tables.get("nonunique_compevent")
             case "unique_switches":
-                if self.diagnostic_tables.has_key("unique_switches"):
-                    data = self.diagnostic_tables["unique_switches"]
-                else:
-                    data = None
+                data = self.diagnostic_tables.get("unique_switches")
             case "nonunique_switches":
-                if self.diagnostic_tables.has_key("nonunique_switches"):
-                    data = self.diagnostic_tables["nonunique_switches"]
-                else:
-                    data = None
+                data = self.diagnostic_tables.get("nonunique_switches")
             case _:
                 data = self.km_data
         if data is None:
-            raise ValueError("Data {type} was not created in the SEQuential process")
+            raise ValueError(f"Data {type} was not created in the SEQuential process")
         return data
 
     def to_md(self, filename="SEQuential_results.md") -> None:
