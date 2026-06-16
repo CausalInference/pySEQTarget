@@ -41,7 +41,13 @@ class SEQoutput:
     :type risk_difference: pl.DataFrame or None
     :param time: Timings for every step of the process completed thus far
     :type time: dict or None
-    :param diagnostic_tables: Diagnostic tables for unique and nonunique outcome events and treatment switches
+    :param diagnostic_tables: Diagnostic tables (outcome, follow-up, switch, and
+        competing-event counts where applicable), each split by baseline treatment
+        arm. The "unique" tables count distinct subjects; the "nonunique" tables
+        count rows: total outcome events for the outcome tables, and total
+        person-time intervals (expanded follow-up rows) for the follow-up tables.
+        For a one-time (terminal) outcome the unique and nonunique outcome counts
+        coincide, since each subject contributes at most one event row.
     :type diagnostic_tables: dict or None
     """
 
@@ -131,6 +137,19 @@ class SEQoutput:
     ) -> pl.DataFrame:
         """
         Getter for data stored within ``SEQoutput``
+
+        The diagnostic tables come in "unique" and "nonunique" variants that count
+        different things, each broken down by baseline treatment arm:
+
+        - ``unique_outcomes`` / ``nonunique_outcomes``: distinct subjects who had
+          the outcome vs. the total number of outcome events. These coincide for a
+          one-time (terminal) outcome, since each subject contributes at most one
+          event row.
+        - ``unique_followup`` / ``nonunique_followup``: distinct subjects
+          contributing follow-up vs. the total number of person-time intervals
+          (expanded rows). The nonunique count is much larger because each subject
+          contributes one row per follow-up period; it is the denominator that,
+          with ``nonunique_outcomes``, gives the per-arm event rate.
 
         :param type: Data which you would like to access, ['km_data', 'hazard',
             'risk_ratio', 'risk_difference', 'unique_outcomes',

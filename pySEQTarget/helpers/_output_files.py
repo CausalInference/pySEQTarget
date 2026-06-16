@@ -78,10 +78,26 @@ def _build_md(self, img_path: str = None) -> str:
             lines.append("")
 
     if self.diagnostic_tables:
+        # Clarify what each unique/nonunique table actually counts, so the
+        # rendered headings are not ambiguous (see SEQoutput.retrieve_data).
+        diag_descriptions = {
+            "unique_outcomes": "distinct subjects who had the outcome",
+            "nonunique_outcomes": "total outcome events",
+            "unique_followup": "distinct subjects contributing follow-up",
+            "nonunique_followup": "person-time intervals",
+            "unique_compevent": "distinct subjects with a competing event",
+            "nonunique_compevent": "total competing-event intervals",
+            "unique_switches": "distinct subjects who switched",
+            "nonunique_switches": "total switch intervals",
+        }
         lines.append("## Diagnostic Tables")
         lines.append("")
         for name, table in self.diagnostic_tables.items():
-            lines.append(f"### {name.replace('_', ' ').title()}")
+            heading = name.replace("_", " ").title()
+            description = diag_descriptions.get(name)
+            if description:
+                heading = f"{heading} ({description})"
+            lines.append(f"### {heading}")
             lines.append("")
             lines.append(table.to_pandas().to_markdown(index=False))
             lines.append("")
