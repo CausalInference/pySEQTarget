@@ -1,8 +1,9 @@
 """With weight_preexpansion=True the weight models are fit on the un-resampled
-pre-expansion data, so bootstrap replicates would refit bit-identical models
+pre-expansion data, so bootstrap replicates would refit identical models
 and re-predict identical weights every iteration. The main fit's predicted
 weight frame is cached and replicates only redo the join onto their resampled
-DT — results must be unchanged, the weight fitters must run exactly once.
+DT — results must be unchanged (to numerical precision), the weight fitters
+must run exactly once.
 """
 
 import sys
@@ -69,4 +70,8 @@ def test_cached_weights_match_refit_weights(monkeypatch):
     _, cached = _run(monkeypatch)
     fit_calls, refit = _run(monkeypatch, disable_cache=True)
     assert len(fit_calls) == 4  # cache disabled: main + 3 replicate refits
-    assert np.array_equal(cached, refit)  # bit-identical outcome coefficients
+    # Identical to numerical precision: the cached and refit paths assemble the
+    # GLM input via different code routes, so multi-threaded BLAS can differ in
+    # the last few ULPs (passes bit-identical on CI, not always locally). A tight
+    # tolerance still catches any real divergence, which would be far larger.
+    assert np.allclose(cached, refit, rtol=0, atol=1e-10)
