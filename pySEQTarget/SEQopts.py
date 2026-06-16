@@ -25,7 +25,8 @@ class SEQopts:
     :param excused_colnames: Column names (at the same length of treatment_level) specifying excused conditions, default ``[]``
     :param expand_only: If True, ``SEQuential.expand()`` returns the expanded dataset and skips weighting,
         modelling, and survival steps
-    :param glm_package: Backend for fitting logistic (outcome/competing-event) models ["statsmodels", "glum", or "jax"], default "statsmodels".
+    :param glm_package: Backend for fitting logistic (outcome/competing-event)
+        models ["statsmodels", "glum", or "jax"], default "statsmodels".
     :param followup_class: Boolean to force followup values to be treated as classes
     :param followup_include: Boolean to force regular followup values into model covariates
     :param followup_spline: Boolean to force followup values to be fit to cubic spline

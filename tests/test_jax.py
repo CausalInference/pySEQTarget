@@ -7,9 +7,9 @@ from pytest import approx
 # every platform — skip the whole module rather than erroring at collection.
 pytest.importorskip("jax")
 
-from pySEQTarget import SEQopts, SEQuential
-from pySEQTarget.data import load_data
-from pySEQTarget.helpers._jax_fit import _JaxFit
+from pySEQTarget import SEQopts, SEQuential  # noqa: E402
+from pySEQTarget.data import load_data  # noqa: E402
+from pySEQTarget.helpers._jax_fit import _JaxFit  # noqa: E402
 
 
 def _fit(method, glm_package, dataset="SEQdata", **opts):

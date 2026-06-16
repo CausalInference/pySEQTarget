@@ -11,8 +11,8 @@ import pytest
 # pandas.DataFrame.to_markdown needs tabulate (the "output" extra).
 pytest.importorskip("tabulate")
 
-from pySEQTarget import SEQopts, SEQuential
-from pySEQTarget.data import load_data
+from pySEQTarget import SEQopts, SEQuential  # noqa: E402
+from pySEQTarget.data import load_data  # noqa: E402
 
 
 def test_to_md_weighted_ITT_without_numerator_models(tmp_path):
