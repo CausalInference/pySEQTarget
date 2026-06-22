@@ -202,7 +202,9 @@ def _risk_estimates(self):
                     # Ratio with log(RR) SE, then exponentiate).
                     rd_se = float(paired["RD"].std())
                     log_rr_se = (
-                        float(valid_rr["RR"].log().std()) if n_valid_rr >= 2 else float("nan")
+                        float(valid_rr["RR"].log().std())
+                        if n_valid_rr >= 2
+                        else float("nan")
                     )
 
                     if self.bootstrap_CI_method == "percentile":

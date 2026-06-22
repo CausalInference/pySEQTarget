@@ -296,8 +296,13 @@ def test_subgroup_compevent():
 
 
 def _risk_estimates(ci, method, paired_subgroup=None):
-    opts = dict(km_curves=True, bootstrap_nboot=4, seed=42, bootstrap_CI=ci,
-                bootstrap_CI_method=method)
+    opts = dict(
+        km_curves=True,
+        bootstrap_nboot=4,
+        seed=42,
+        bootstrap_CI=ci,
+        bootstrap_CI_method=method,
+    )
     if paired_subgroup:
         opts["subgroup_colname"] = paired_subgroup
     s = SEQuential(
