@@ -293,3 +293,67 @@ def test_subgroup_compevent():
     s.fit()
     s.survival()
     return
+
+
+def _risk_estimates(ci, method, paired_subgroup=None):
+    opts = dict(
+        km_curves=True,
+        bootstrap_nboot=4,
+        seed=42,
+        bootstrap_CI=ci,
+        bootstrap_CI_method=method,
+    )
+    if paired_subgroup:
+        opts["subgroup_colname"] = paired_subgroup
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(**opts),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    s.survival()
+    return s.risk_estimates
+
+
+@pytest.mark.parametrize("method", ["se", "percentile"])
+def test_risk_ci_columns_labelled_with_requested_level(method):
+    # The CI columns must be labelled with the requested level, not a hardcoded
+    # 95% (the interval itself was already computed at the right level).
+    est = _risk_estimates(0.9, method)
+    rd, rr = est["risk_difference"], est["risk_ratio"]
+    assert "RD 90% LCI" in rd.columns and "RD 90% UCI" in rd.columns
+    assert "RR 90% LCI" in rr.columns and "RR 90% UCI" in rr.columns
+    assert "RD 95% LCI" not in rd.columns
+    assert "RR 95% LCI" not in rr.columns
+
+
+@pytest.mark.parametrize("method", ["se", "percentile"])
+def test_risk_se_columns_present_for_both_methods(method):
+    # Bootstrap SEs are reported regardless of CI method: RD SE (natural scale)
+    # and log(RR) SE (log scale) for inverse-variance meta-analysis pooling.
+    est = _risk_estimates(0.95, method)
+    rd, rr = est["risk_difference"], est["risk_ratio"]
+    assert "RD SE" in rd.columns
+    assert "log(RR) SE" in rr.columns
+    assert rd["RD SE"].null_count() == 0
+    assert (rd["RD SE"] >= 0).all()
+
+
+def test_risk_se_columns_present_subgroup_delta_path():
+    # Subgroups use the independent delta-method fallback (_compute_rd_rr),
+    # which must also emit the SE columns and the requested CI label.
+    est = _risk_estimates(0.9, "se", paired_subgroup="sex")
+    rd, rr = est["risk_difference"], est["risk_ratio"]
+    assert "RD SE" in rd.columns
+    assert "log(RR) SE" in rr.columns
+    assert "RD 90% LCI" in rd.columns
+    assert "RR 90% LCI" in rr.columns

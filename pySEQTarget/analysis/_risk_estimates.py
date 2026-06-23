@@ -4,7 +4,12 @@ import polars as pl
 from scipy import stats
 
 
-def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None):
+def _ci_label(bootstrap_CI):
+    """Format the CI level as a column-name fragment, e.g. 0.95 -> '95%'."""
+    return f"{bootstrap_CI * 100:g}%"
+
+
+def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None, ci_label="95%"):
     """
     Compute Risk Difference and Risk Ratio from a comparison dataframe.
     Fallback used when paired bootstrap data is unavailable (e.g. subgroups).
@@ -14,11 +19,14 @@ def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None):
 
     if has_bootstrap:
         rd_se = (pl.col("se_x").pow(2) + pl.col("se_y").pow(2)).sqrt()
+        rd_lci_lab = f"RD {ci_label} LCI"
+        rd_uci_lab = f"RD {ci_label} UCI"
         rd_comp = comp.with_columns(
             [
                 (pl.col("risk_x") - pl.col("risk_y")).alias("Risk Difference"),
-                (pl.col("risk_x") - pl.col("risk_y") - z * rd_se).alias("RD 95% LCI"),
-                (pl.col("risk_x") - pl.col("risk_y") + z * rd_se).alias("RD 95% UCI"),
+                (pl.col("risk_x") - pl.col("risk_y") - z * rd_se).alias(rd_lci_lab),
+                (pl.col("risk_x") - pl.col("risk_y") + z * rd_se).alias(rd_uci_lab),
+                rd_se.alias("RD SE"),
             ]
         )
         rd_comp = rd_comp.drop(["risk_x", "risk_y", "se_x", "se_y"])
@@ -26,8 +34,9 @@ def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None):
             "A_x",
             "A_y",
             "Risk Difference",
-            "RD 95% LCI",
-            "RD 95% UCI",
+            rd_lci_lab,
+            rd_uci_lab,
+            "RD SE",
         ]
         rd_comp = rd_comp.select([c for c in col_order if c in rd_comp.columns])
 
@@ -35,15 +44,18 @@ def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None):
             (pl.col("se_x") / pl.col("risk_x")).pow(2)
             + (pl.col("se_y") / pl.col("risk_y")).pow(2)
         ).sqrt()
+        rr_lci_lab = f"RR {ci_label} LCI"
+        rr_uci_lab = f"RR {ci_label} UCI"
         rr_comp = comp.with_columns(
             [
                 (pl.col("risk_x") / pl.col("risk_y")).alias("Risk Ratio"),
                 ((pl.col("risk_x") / pl.col("risk_y")) * (-z * rr_log_se).exp()).alias(
-                    "RR 95% LCI"
+                    rr_lci_lab
                 ),
                 ((pl.col("risk_x") / pl.col("risk_y")) * (z * rr_log_se).exp()).alias(
-                    "RR 95% UCI"
+                    rr_uci_lab
                 ),
+                rr_log_se.alias("log(RR) SE"),
             ]
         )
         rr_comp = rr_comp.drop(["risk_x", "risk_y", "se_x", "se_y"])
@@ -51,8 +63,9 @@ def _compute_rd_rr(comp, has_bootstrap, z=None, group_cols=None):
             "A_x",
             "A_y",
             "Risk Ratio",
-            "RR 95% LCI",
-            "RR 95% UCI",
+            rr_lci_lab,
+            rr_uci_lab,
+            "log(RR) SE",
         ]
         rr_comp = rr_comp.select([c for c in col_order if c in rr_comp.columns])
     else:
@@ -129,9 +142,11 @@ def _risk_estimates(self):
     if has_bootstrap:
         alpha = 1 - self.bootstrap_CI
         z = stats.norm.ppf(1 - alpha / 2)
+        ci_label = _ci_label(self.bootstrap_CI)
     else:
         z = None
         alpha = None
+        ci_label = _ci_label(self.bootstrap_CI)
 
     rd_comparisons = []
     rr_comparisons = []
@@ -180,6 +195,18 @@ def _risk_estimates(self):
 
                     n_valid_rr = len(valid_rr)
 
+                    # Bootstrap SEs, retained regardless of CI method: the risk
+                    # difference SE is on the natural scale, the risk ratio SE
+                    # on the log scale (the scale ratio measures are pooled on
+                    # for inverse-variance meta-analysis: combine the log Risk
+                    # Ratio with log(RR) SE, then exponentiate).
+                    rd_se = float(paired["RD"].std())
+                    log_rr_se = (
+                        float(valid_rr["RR"].log().std())
+                        if n_valid_rr >= 2
+                        else float("nan")
+                    )
+
                     if self.bootstrap_CI_method == "percentile":
                         rd_lci = float(paired["RD"].quantile(alpha / 2))
                         rd_uci = float(paired["RD"].quantile(1 - alpha / 2))
@@ -190,11 +217,9 @@ def _risk_estimates(self):
                             rr_lci = float("nan")
                             rr_uci = float("nan")
                     else:
-                        rd_se = float(paired["RD"].std())
                         rd_lci = rd_point - z * rd_se
                         rd_uci = rd_point + z * rd_se
                         if n_valid_rr >= 2 and rr_point > 0:
-                            log_rr_se = float(valid_rr["RR"].log().std())
                             rr_lci = math.exp(math.log(rr_point) - z * log_rr_se)
                             rr_uci = math.exp(math.log(rr_point) + z * log_rr_se)
                         else:
@@ -207,8 +232,9 @@ def _risk_estimates(self):
                             "A_x": [tx_x],
                             "A_y": [tx_y],
                             "Risk Difference": [rd_point],
-                            "RD 95% LCI": [rd_lci],
-                            "RD 95% UCI": [rd_uci],
+                            f"RD {ci_label} LCI": [rd_lci],
+                            f"RD {ci_label} UCI": [rd_uci],
+                            "RD SE": [rd_se],
                         }
                     )
                     rr_comp = pl.DataFrame(
@@ -217,8 +243,9 @@ def _risk_estimates(self):
                             "A_x": [tx_x],
                             "A_y": [tx_y],
                             "Risk Ratio": [rr_point],
-                            "RR 95% LCI": [rr_lci],
-                            "RR 95% UCI": [rr_uci],
+                            f"RR {ci_label} LCI": [rr_lci],
+                            f"RR {ci_label} UCI": [rr_uci],
+                            "log(RR) SE": [log_rr_se],
                         }
                     )
                 else:
@@ -246,7 +273,7 @@ def _risk_estimates(self):
                             comp = comp.join(se_y, how="cross")
 
                     rd_comp, rr_comp = _compute_rd_rr(
-                        comp, has_bootstrap, z, group_cols
+                        comp, has_bootstrap, z, group_cols, ci_label
                     )
                     rd_cols = rd_comp.columns
                     rr_cols = rr_comp.columns
