@@ -19,7 +19,7 @@ def _mapper(data, id_col, time_col, min_followup=-math.inf, max_followup=math.in
                 ).alias("period")
             ]
         )
-        .explode("period")
+        .explode("period", empty_as_null=True)
         .drop(pl.col(time_col))
         .with_columns(
             [

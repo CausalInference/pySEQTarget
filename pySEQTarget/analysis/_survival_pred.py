@@ -148,7 +148,7 @@ def _calculate_risk(self, data, idx=None, val=None):
         .first()
         .drop(["followup", f"followup{self.indicator_squared}"])
         .with_columns([pl.lit(followup_range).alias("followup")])
-        .explode("followup")
+        .explode("followup", empty_as_null=True)
         .with_columns(
             [(pl.col("followup") ** 2).alias(f"followup{self.indicator_squared}")]
         )

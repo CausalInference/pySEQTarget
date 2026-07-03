@@ -60,7 +60,7 @@ def _prepare_boot_data(self, data, boot_id):
         data.lazy()
         .join(counts.lazy(), on=self.id_col, how="inner")
         .with_columns(pl.int_ranges(0, pl.col("count")).alias("replicate"))
-        .explode("replicate")
+        .explode("replicate", empty_as_null=True)
         .with_columns(new_id)
         .drop("count", "replicate")
         .collect()
