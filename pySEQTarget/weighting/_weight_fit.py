@@ -5,6 +5,17 @@ from ..error._check_separation import _check_separation
 from ..helpers._glum_fit import _fit_glum
 
 
+def _formula_rhs_for_level(spec, level_idx):
+    """
+    Resolve the right-hand-side formula for a treatment level. ``spec`` is either
+    a single formula string (shared across arms) or a list with one formula per
+    treatment level (in treatment_level order), fitting a separate model per arm.
+    """
+    if isinstance(spec, (list, tuple)):
+        return spec[level_idx]
+    return spec
+
+
 def _get_subset_for_level(
     self, WDT, level_idx, level, tx_lag_col, exclude_followup_zero=False
 ):
@@ -88,11 +99,6 @@ def _fit_numerator(self, WDT):
     if self.method == "ITT":
         return
     predictor = "switch" if self.excused else self.treatment_col
-    # Handle intercept-only formula when numerator is "1" or empty
-    if self.numerator in ("1", ""):
-        formula = f"{predictor}~1"
-    else:
-        formula = f"{predictor}~{self.numerator}"
     tx_lag_col = (
         f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"
     )
@@ -101,6 +107,9 @@ def _fit_numerator(self, WDT):
     # treatment_level=[1,2] or dose-response always uses mnlogit
     is_binary = sorted(self.treatment_level) == [0, 1] and self.method == "censoring"
     for i, level in enumerate(self.treatment_level):
+        # numerator may be per-treatment-level; select this arm's formula.
+        rhs = _formula_rhs_for_level(self.numerator, i)
+        formula = f"{predictor}~1" if rhs in ("1", "") else f"{predictor}~{rhs}"
         DT_subset = _get_subset_for_level(self, WDT, i, level, tx_lag_col)
         if len(DT_subset[predictor].unique()) < 2:
             fits.append(None)
@@ -131,17 +140,15 @@ def _fit_denominator(self, WDT):
         if self.excused and not self.weight_preexpansion
         else self.treatment_col
     )
-    # Handle intercept-only formula when denominator is "1" or empty
-    if self.denominator in ("1", ""):
-        formula = f"{predictor}~1"
-    else:
-        formula = f"{predictor}~{self.denominator}"
     fits = []
     # Use logit for binary 0/1 treatment with censoring method only
     # treatment_level=[1,2] or dose-response always uses mnlogit
     is_binary = sorted(self.treatment_level) == [0, 1] and self.method == "censoring"
     exclude_followup_zero = not self.weight_preexpansion
     for i, level in enumerate(self.treatment_level):
+        # denominator may be per-treatment-level; select this arm's formula.
+        rhs = _formula_rhs_for_level(self.denominator, i)
+        formula = f"{predictor}~1" if rhs in ("1", "") else f"{predictor}~{rhs}"
         DT_subset = _get_subset_for_level(
             self, WDT, i, level, "tx_lag", exclude_followup_zero=exclude_followup_zero
         )

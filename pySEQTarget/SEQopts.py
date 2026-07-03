@@ -1,7 +1,7 @@
 import multiprocessing
 import os
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 
 @dataclass
@@ -20,7 +20,12 @@ class SEQopts:
     :param cense_eligible_colname: Column name to identify which rows are eligible for censoring model fitting
     :param compevent_colname: Column name specifying a competing event to the outcome
     :param covariates: Override to specify the outcome patsy formula for outcome model fitting
-    :param denominator: Override to specify the outcome patsy formula for denominator model fitting
+    :param denominator: Override to specify the patsy formula for denominator weight
+        model fitting. A single string fits the same model in every treatment arm.
+        A list with one formula per ``treatment_level`` (in ``treatment_level``
+        order) fits a separate denominator model, with its own covariates, in each
+        arm; this is only supported for post-expansion weights
+        (``weight_preexpansion=False``).
     :param excused: Boolean to allow excused conditions when method is censoring
     :param excused_colnames: Column names (at the same length of treatment_level) specifying excused conditions, default ``[]``
     :param expand_only: If True, ``SEQuential.expand()`` returns the expanded dataset and skips weighting,
@@ -38,8 +43,12 @@ class SEQopts:
     :param indicator_squared: How to indicate squared columns in models
     :param km_curves: Boolean to create survival, risk, and incidence (if applicable) estimates
     :param ncores: Number of cores to use if running in parallel, default ``max(1, cpu_count() - 1)``
-    :param numerator: Override to specify the outcome patsy formula for
-        numerator models; "1" or "" indicate intercept only model
+    :param numerator: Override to specify the patsy formula for numerator weight
+        models; "1" or "" indicate intercept only model. A single string fits the
+        same model in every treatment arm. A list with one formula per
+        ``treatment_level`` (in ``treatment_level`` order) fits a separate
+        numerator model, with its own covariates, in each arm; this is only
+        supported for post-expansion weights (``weight_preexpansion=False``).
     :param offload: Boolean to offload intermediate model data to disk
     :param offload_dir: Directory to offload intermediate model data
     :param parallel: Boolean to run model fitting in parallel
@@ -81,7 +90,7 @@ class SEQopts:
     compevent_colname: Optional[str] = None
     covariates: Optional[str] = None
     cox_package: Literal["lifelines", "scikit-survival"] = "lifelines"
-    denominator: Optional[str] = None
+    denominator: Optional[Union[str, List[str]]] = None
     excused: bool = False
     excused_colnames: List[str] = field(default_factory=lambda: [])
     expand_only: bool = False
@@ -97,7 +106,7 @@ class SEQopts:
     indicator_squared: str = "_sq"
     km_curves: bool = False
     ncores: Optional[int] = None
-    numerator: Optional[str] = None
+    numerator: Optional[Union[str, List[str]]] = None
     offload: bool = False
     offload_dir: str = "_seq_models"
     parallel: bool = False
@@ -198,7 +207,20 @@ class SEQopts:
             "cense_denominator",
         ):
             attr = getattr(self, i)
-            if attr is not None and not isinstance(attr, list):
+            if attr is None:
+                continue
+            if isinstance(attr, list):
+                # Per-treatment-level formulas (numerator/denominator): strip
+                # whitespace from each element, leaving None entries untouched.
+                setattr(
+                    self,
+                    i,
+                    [
+                        "".join(a.split()) if isinstance(a, str) else a
+                        for a in attr
+                    ],
+                )
+            else:
                 setattr(self, i, "".join(attr.split()))
 
     def __post_init__(self):
