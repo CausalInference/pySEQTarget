@@ -215,10 +215,7 @@ class SEQopts:
                 setattr(
                     self,
                     i,
-                    [
-                        "".join(a.split()) if isinstance(a, str) else a
-                        for a in attr
-                    ],
+                    ["".join(a.split()) if isinstance(a, str) else a for a in attr],
                 )
             else:
                 setattr(self, i, "".join(attr.split()))

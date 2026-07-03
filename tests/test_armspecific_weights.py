@@ -55,9 +55,7 @@ def test_per_arm_denominator_fits_different_covariates_in_each_arm():
 
 def test_per_arm_formulas_with_identical_elements_match_shared_fit():
     shared = _model(numerator="sex", denominator="N+L+P+sex")
-    perarm = _model(
-        numerator=["sex", "sex"], denominator=["N+L+P+sex", "N+L+P+sex"]
-    )
+    perarm = _model(numerator=["sex", "sex"], denominator=["N+L+P+sex", "N+L+P+sex"])
 
     for i in range(2):
         np.testing.assert_allclose(
