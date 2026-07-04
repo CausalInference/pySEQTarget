@@ -130,7 +130,7 @@ def _one_boot_log_hr(self, data, idx, model_pos, sample_idx):
         data.lazy()
         .join(counts.lazy(), on=self.id_col, how="inner")
         .with_columns(pl.int_ranges(0, pl.col("_count")).alias("_rep"))
-        .explode("_rep")
+        .explode("_rep", empty_as_null=True)
         .drop("_count", "_rep")
         .collect()
     )
@@ -209,7 +209,7 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
         .first()
         .sort([self.id_col, "trial"])
         .with_columns([pl.lit(list(range(self.followup_max + 1))).alias("followup")])
-        .explode("followup")
+        .explode("followup", empty_as_null=True)
         .with_columns(
             [(pl.col("followup") ** 2).alias(f"followup{self.indicator_squared}")]
         )

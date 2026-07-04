@@ -68,23 +68,67 @@ def _param_checker(self):
             "For weighted ITT analyses, cense_colname or visit_colname must be provided."
         )
 
+    # Per-treatment-level weight models: 'numerator'/'denominator' may be a list
+    # with one formula per treatment_level (in treatment_level order), fitting a
+    # separate model per arm. Only supported for post-expansion weights.
+    for name in ("numerator", "denominator"):
+        spec = getattr(self, name)
+        if isinstance(spec, (list, tuple)):
+            if not self.weighted or self.method == "ITT":
+                raise ValueError(
+                    f"Per-treatment-level '{name}' models require a weighted, "
+                    "non-ITT analysis."
+                )
+            if self.weight_preexpansion:
+                raise ValueError(
+                    f"Per-treatment-level '{name}' models are only supported for "
+                    "post-expansion weights (weight_preexpansion=False)."
+                )
+            if any(f is None for f in spec):
+                raise ValueError(
+                    f"Per-treatment-level '{name}' formulas contain None; supply "
+                    "one formula per treatment level."
+                )
+            if len(spec) != len(self.treatment_level):
+                raise ValueError(
+                    f"'{name}' must be a single formula or one per treatment "
+                    f"level ({len(self.treatment_level)} expected, in "
+                    f"'treatment_level' order) but {len(spec)} were supplied."
+                )
+
     if (
         self.weighted
         and self.method != "ITT"
         and self.numerator is not None
         and self.denominator is not None
-        and self.numerator == self.denominator
     ):
-        warnings.warn(
-            f"Numerator and denominator weight models use identical "
-            f"covariates ('{self.numerator}'); the stabilized weights "
-            "will all equal 1 (i.e., no weighting). The denominator "
-            "should typically include the time-varying confounders "
-            "that the numerator omits — check for a typo in either or "
-            "both of 'numerator' and 'denominator'.",
-            UserWarning,
-            stacklevel=2,
+        num_list = (
+            list(self.numerator)
+            if isinstance(self.numerator, (list, tuple))
+            else [self.numerator]
         )
+        den_list = (
+            list(self.denominator)
+            if isinstance(self.denominator, (list, tuple))
+            else [self.denominator]
+        )
+        # Warn on any arm whose numerator and denominator formulas coincide
+        # (element-wise when both are per-arm; the shared/shared case reduces to
+        # comparing the two single formulas).
+        if len(num_list) == len(den_list):
+            same = sorted({n for n, d in zip(num_list, den_list) if n == d})
+            if same:
+                covs = "', '".join(same)
+                warnings.warn(
+                    f"Numerator and denominator weight models use identical "
+                    f"covariates ('{covs}'); the stabilized weights "
+                    "will all equal 1 (i.e., no weighting). The denominator "
+                    "should typically include the time-varying confounders "
+                    "that the numerator omits — check for a typo in either or "
+                    "both of 'numerator' and 'denominator'.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
     if self.excused:
         _, self.excused_colnames = _pad(self.treatment_level, self.excused_colnames)
