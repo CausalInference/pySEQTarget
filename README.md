@@ -1,4 +1,4 @@
-# pySEQTarget - Sequentially Nested Target Trial Emulation
+# pySEQTarget - Sequential Target Trial Emulation
 [![PyPI version](https://badge.fury.io/py/pySEQTarget.svg)](https://pypi.org/project/pySEQTarget) 
 [![Downloads](https://static.pepy.tech/badge/pySEQTarget)](https://pepy.tech/project/pySEQTarget)
 [![codecov](https://codecov.io/gh/CausalInference/pySEQTarget/graph/badge.svg?token=DMOVJJUWXP)](https://codecov.io/gh/CausalInference/pySEQTarget)[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

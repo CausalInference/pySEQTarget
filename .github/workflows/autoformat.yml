@@ -26,7 +26,18 @@ jobs:
       
       - name: Sort imports with isort
         run: isort .
-      
+
+      - name: Sync version into CITATION.cff
+        run: |
+          python - <<'EOF'
+          import pathlib, re, tomllib
+          version = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          cff = pathlib.Path("CITATION.cff")
+          text = re.sub(r"^version:.*$", f"version: {version}", cff.read_text(), flags=re.M)
+          cff.write_text(text)
+          print(f"Synced CITATION.cff to version {version}")
+          EOF
+
       - name: Commit changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
