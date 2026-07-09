@@ -30,7 +30,7 @@ _DEFAULT_SEED = 0
 
 class SEQuential:
     """
-    Primary class initializer for SEQuentially nested target trial emulation
+    Primary class initializer for SEQuential target trial emulation
 
     :param data: Data for analysis
     :param id_col: Column name for unique patient IDs
@@ -126,7 +126,7 @@ class SEQuential:
 
     def expand(self):
         """
-        Creates the sequentially nested, emulated target trial structure.
+        Creates the sequential, emulated target trial structure.
         If ``expand_only`` is set in parameters, returns the expanded dataset as a
         :class:`polars.DataFrame` and skips all subsequent analysis steps.
         """
