@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the following metadata."
 authors:
-  - family-name O'Dea
+  - family-name: O'Dea
     given-name: Ryan
     affiliation: CAUSALab, Department of Epidemiology, Harvard T.H. Chan School of Public Health
     orcid: https://orcid.org/0009-0000-0103-9546
