@@ -11,9 +11,7 @@ authors:
     orcid: https://orcid.org/0000-0003-4655-4511
   - family-name: Szmulewicz
     given-name: Alejandro
-    affiliation: CAUSALab, Department of Epidemiology, Harvard T.H. Chan School of Public Health
-    affiliation: McLean Hospital
-    affiliation: Department of Psychiatry, Harvard Medical School
+    affiliation: "CAUSALab, Department of Epidemiology, Harvard T.H. Chan School of Public Health; McLean Hospital; Department of Psychiatry, Harvard Medical School"
     orcid: https://orcid.org/0000-0002-2664-802X
   - family-name: Hernán
     given-name: Miguel A.
