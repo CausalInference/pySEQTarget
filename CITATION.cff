@@ -17,8 +17,7 @@ authors:
     orcid: https://orcid.org/0000-0002-2664-802X
   - family-name: Hernán
     given-name: Miguel A.
-    affiliation: CAUSALab, Department of Epidemiology, Harvard T.H. Chan School of Public Health
-    affiliation: Department of Biostatistics, Harvard T.H. Chan School of Public Health
+    affiliation: "CAUSALab, Department of Epidemiology, Harvard T.H. Chan School of Public Health; Department of Biostatistics, Harvard T.H. Chan School of Public Health"
     orcid: https://orcid.org/0000-0003-1619-8456
 title: "pySEQTarget: Sequential Target Trial Emulation"
 version: 0.14.0
