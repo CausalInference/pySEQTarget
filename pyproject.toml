@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pySEQTarget"
 version = "0.14.0"
-description = "Sequentially Nested Target Trial Emulation"
+description = "Sequential Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
 keywords = ["causal inference", "sequential trial emulation", "target trial", "observational studies"]
@@ -23,8 +23,8 @@ classifiers = [
 
 authors = [
     {name = "Ryan O'Dea", email = "ryan.odea@psi.ch"},
-    {name = "Alejandro Szmulewicz", email = "aszmulewicz@hsph.harvard.edu"},
     {name = "Tom Palmer", email = "remlapmot@hotmail.com"},
+    {name = "Alejandro Szmulewicz", email = "aszmulewicz@hsph.harvard.edu"},
     {name = "Miguel Hernán", email = "mhernan@hsph.harvard.edu"},
 ]
 
