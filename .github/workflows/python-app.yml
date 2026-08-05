@@ -13,11 +13,20 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # 3.15 is a pre-release: allowed to fail until the compiled dependencies
+    # (numpy, scipy, polars, pyarrow, matplotlib, scikit-learn) ship cp315
+    # wheels. Flip `experimental` off once it goes green.
+    continue-on-error: ${{ matrix.experimental || false }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [macos-26]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: macos-26
+            python-version: "3.15"
+            experimental: true
 
     steps:
     - uses: actions/checkout@v7
