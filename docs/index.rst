@@ -17,4 +17,5 @@
 
    vignettes/getting_started
    vignettes/more_advanced_models
+   vignettes/end_of_followup
    vignettes/exploring_results
