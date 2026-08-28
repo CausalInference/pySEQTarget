@@ -4,14 +4,38 @@ import polars as pl
 def _check_binary(data, col):
     unique_vals = set(data[col].drop_nulls().unique().to_list())
     if not unique_vals.issubset({0, 1}):
+        # Cap the listing — a continuous column can hold thousands of values
+        offending = sorted(unique_vals - {0, 1})
+        shown = ", ".join(str(v) for v in offending[:10])
+        if len(offending) > 10:
+            shown += f", ... ({len(offending)} distinct values)"
         raise ValueError(
-            f"Column '{col}' must be binary (0/1) but contains values: {sorted(unique_vals)}"
+            f"Column '{col}' must be binary (0/1) but contains values: {shown}"
         )
 
 
 def _data_checker(self):
     _check_binary(self.data, self.eligible_col)
-    _check_binary(self.data, self.outcome_col)
+
+    # end_of_fup treats a null outcome as "not measured at this time"; in every
+    # other mode the outcome must be complete.
+    if not self.end_of_fup and self.data[self.outcome_col].null_count() > 0:
+        raise ValueError(
+            f"Column '{self.outcome_col}' contains missing values; missing "
+            "outcome measurements are only permitted with end_of_fup=True."
+        )
+    # Continuous end-of-follow-up outcomes are averaged, not modelled, so
+    # non-binary values are expected there.
+    if not (self.end_of_fup and self.end_of_fup_type == "continuous"):
+        try:
+            _check_binary(self.data, self.outcome_col)
+        except ValueError as e:
+            if self.end_of_fup:
+                raise ValueError(
+                    f"{e} For an outcome that is not 0/1, set "
+                    "end_of_fup_type='continuous' in SEQopts."
+                ) from None
+            raise
 
     if self.cense_eligible_colname is not None:
         _check_binary(self.data, self.cense_eligible_colname)

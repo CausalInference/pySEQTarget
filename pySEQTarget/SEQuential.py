@@ -9,8 +9,9 @@ import numpy as np
 import polars as pl
 
 from .analysis import (_calculate_hazard, _calculate_survival, _clamp,
-                       _outcome_fit, _pred_risk, _risk_estimates,
-                       _subgroup_fit)
+                       _create_endoffup, _eof_counts, _eof_estimate,
+                       _eof_frame, _eof_summary, _outcome_fit, _pred_risk,
+                       _risk_estimates, _subgroup_fit)
 from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import Offloader, _col_string, _format_time, bootstrap_loop
@@ -322,6 +323,24 @@ class SEQuential:
         is_boot = boot_idx is not None
         start = getattr(self, "_outcome_start_params", None) if is_boot else None
 
+        if self.end_of_fup:
+            # An end-of-follow-up outcome is a weighted average read at a single
+            # follow-up time, not a fitted model — skip the outcome model.
+            est = _eof_estimate(self)
+            if not is_boot:
+                # Counted from the same data as the estimate so the two always
+                # reconcile; only the main fit populates the diagnostics.
+                DT_eof = _eof_frame(self)
+                diag = dict(getattr(self, "diagnostics", None) or {})
+                diag["unique_eof"] = _eof_counts(self, DT_eof, unique=True)
+                diag["nonunique_eof"] = _eof_counts(self, DT_eof, unique=False)
+                if self.end_of_fup_type == "continuous":
+                    # Mean/SD of the analysed measurements stands in for the
+                    # (suppressed) outcome count tables for continuous outcomes
+                    diag["eof_summary"] = _eof_summary(self, DT_eof)
+                self.diagnostics = diag
+            return {"eof": est}
+
         if self.subgroup_colname is not None:
             models_list = _subgroup_fit(self, start_params=start)
             if not is_boot:
@@ -383,6 +402,12 @@ class SEQuential:
             else:
                 raise ValueError(f"Unknown or misplaced argument: {key}")
 
+        if self.end_of_fup:
+            raise ValueError(
+                "Survival curves are not available with end_of_fup=True; use "
+                "the 'end_of_followup' method instead."
+            )
+
         if not hasattr(self, "outcome_model") or not self.outcome_model:
             raise ValueError(
                 "Outcome model not found. Please run the 'fit' method before calculating survival."
@@ -401,11 +426,46 @@ class SEQuential:
         end = time.perf_counter()
         self._survival_time = _format_time(start, end)
 
+    def end_of_followup(self) -> None:
+        """
+        Assembles the end-of-follow-up estimates (``end_of_fup=True``):
+        the per-arm weighted proportion or mean read at ``end_of_fup_time``
+        (``eof_data``) and the pairwise between-arm contrasts
+        (``eof_comparison``), with bootstrap confidence intervals when
+        bootstrapped. Contrasts are paired by bootstrap iteration, so the
+        interval accounts for the correlation between arms.
+        """
+        start = time.perf_counter()
+
+        if not self.end_of_fup:
+            raise ValueError(
+                "End-of-follow-up estimates were not created as a result of "
+                "end_of_fup=False."
+            )
+        if not hasattr(self, "outcome_model") or not self.outcome_model:
+            raise ValueError(
+                "End-of-follow-up estimates not found. Please run the 'fit' "
+                "method before assembling them."
+            )
+
+        eof = _create_endoffup(self)
+        self.eof_data = eof["eof_data"]
+        self.eof_comparison = eof["eof_comparison"]
+
+        end = time.perf_counter()
+        self._eof_time = _format_time(start, end)
+
     def hazard(self) -> None:
         """
         Uses fit outcome models (outcome, competing event) to estimate hazard ratios
         """
         start = time.perf_counter()
+
+        if self.end_of_fup:
+            raise ValueError(
+                "Hazard ratios are not available with end_of_fup=True; use "
+                "the 'end_of_followup' method instead."
+            )
 
         if self.method == "dose-response":
             raise NotImplementedError(
@@ -457,6 +517,8 @@ class SEQuential:
             "_model_time",
             "_expansion_time",
             "weight_stats",
+            "eof_data",
+            "eof_comparison",
         ]
         for attr in generated:
             if not hasattr(self, attr):
@@ -479,7 +541,11 @@ class SEQuential:
             "collection_time": self._time_collected,
         }
 
-        if self.outcome_model is not None:
+        if self.end_of_fup:
+            # No outcome model is fit for an end-of-follow-up outcome
+            outcome_models = None
+            compevent_models = None
+        elif self.outcome_model is not None:
             outcome_models = [model["outcome"] for model in self.outcome_model]
             if self.compevent_colname is not None:
                 compevent_models = [model["compevent"] for model in self.outcome_model]
@@ -510,6 +576,8 @@ class SEQuential:
             km_graph=self.km_graph,
             risk_ratio=risk_ratio,
             risk_difference=risk_difference,
+            eof_data=self.eof_data,
+            eof_comparison=self.eof_comparison,
             time=time,
             diagnostic_tables=self.diagnostics,
         )

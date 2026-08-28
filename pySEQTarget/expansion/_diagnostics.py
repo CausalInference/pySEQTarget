@@ -2,9 +2,12 @@ import polars as pl
 
 
 def _diagnostics(self):
-    unique_out = _outcome_diag(self, unique=True)
-    nonunique_out = _outcome_diag(self, unique=False)
-    out = {"unique_outcomes": unique_out, "nonunique_outcomes": nonunique_out}
+    # Outcome tables count outcome == 1 rows — meaningless for a continuous
+    # end-of-follow-up outcome, so they are suppressed there.
+    out = {}
+    if not (self.end_of_fup and self.end_of_fup_type == "continuous"):
+        out["unique_outcomes"] = _outcome_diag(self, unique=True)
+        out["nonunique_outcomes"] = _outcome_diag(self, unique=False)
 
     unique_fu = _followup_diag(self, unique=True)
     nonunique_fu = _followup_diag(self, unique=False)

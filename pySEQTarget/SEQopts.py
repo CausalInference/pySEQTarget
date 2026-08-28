@@ -26,6 +26,26 @@ class SEQopts:
         order) fits a separate denominator model, with its own covariates, in each
         arm; this is only supported for post-expansion weights
         (``weight_preexpansion=False``).
+    :param end_of_fup: Boolean to estimate an end-of-follow-up outcome — one measured
+        at a single follow-up time rather than as a time-to-event — instead of fitting
+        a survival outcome model, default ``False``. The estimate is the weighted
+        average of the outcome within each baseline treatment arm, weighted by the
+        period-trial-specific weight at the time the outcome is taken. Incompatible
+        with ``km_curves`` and ``hazard_estimate``. Results are assembled with
+        ``SEQuential.end_of_followup()``.
+    :param end_of_fup_time: The follow-up time ``k`` (in follow-up periods since trial
+        enrollment) at which the end-of-follow-up outcome is evaluated. Required when
+        ``end_of_fup=True``
+    :param end_of_fup_type: Type of end-of-follow-up outcome, either ``'binary'`` (the
+        default, giving the weighted proportion in each arm) or ``'continuous'``
+        (giving the weighted mean)
+    :param end_of_fup_window: Half-width of the window used when a trial-period has no
+        outcome measurement at exactly ``end_of_fup_time``, default ``0`` (no window).
+        Those trial-periods fall back to the measurement nearest to ``k`` within
+        ``[k - window, k + window]`` (ties — measurements equally far either side of
+        ``k`` — are broken toward the later measurement, so that at least ``k`` of
+        follow-up has elapsed); any with no measurement anywhere in the window are
+        censored, i.e. excluded from the average
     :param excused: Boolean to allow excused conditions when method is censoring
     :param excused_colnames: Column names (at the same length of treatment_level) specifying excused conditions, default ``[]``
     :param expand_only: If True, ``SEQuential.expand()`` returns the expanded dataset and skips weighting,
@@ -91,6 +111,10 @@ class SEQopts:
     covariates: Optional[str] = None
     cox_package: Literal["lifelines", "scikit-survival"] = "lifelines"
     denominator: Optional[Union[str, List[str]]] = None
+    end_of_fup: bool = False
+    end_of_fup_time: Optional[float] = None
+    end_of_fup_type: Literal["binary", "continuous"] = "binary"
+    end_of_fup_window: float = 0.0
     excused: bool = False
     excused_colnames: List[str] = field(default_factory=lambda: [])
     expand_only: bool = False
@@ -137,6 +161,7 @@ class SEQopts:
 
     def _validate_bools(self):
         bools = [
+            "end_of_fup",
             "excused",
             "expand_only",
             "followup_class",
@@ -186,6 +211,23 @@ class SEQopts:
             if any(not isinstance(t, (int, float)) or t < 0 for t in times):
                 raise ValueError("risk_times values must be non-negative numbers.")
 
+        if self.end_of_fup:
+            if self.end_of_fup_time is None or not isinstance(
+                self.end_of_fup_time, (int, float)
+            ):
+                raise ValueError(
+                    "end_of_fup_time must be a single non-missing follow-up time "
+                    "when end_of_fup=True."
+                )
+            if self.end_of_fup_time < 0:
+                raise ValueError("end_of_fup_time must be non-negative.")
+            if not isinstance(self.end_of_fup_window, (int, float)) or (
+                self.end_of_fup_window < 0
+            ):
+                raise ValueError(
+                    "end_of_fup_window must be a single non-negative number."
+                )
+
     def _validate_choices(self):
         if self.plot_type not in ["risk", "survival", "incidence"]:
             raise ValueError(
@@ -197,6 +239,8 @@ class SEQopts:
             raise ValueError("glm_package must be 'statsmodels', 'glum', or 'jax'")
         if self.cox_package not in ["lifelines", "scikit-survival"]:
             raise ValueError("cox_package must be 'lifelines' or 'scikit-survival'")
+        if self.end_of_fup_type not in ["binary", "continuous"]:
+            raise ValueError("end_of_fup_type must be 'binary' or 'continuous'")
 
     def _normalize_formulas(self):
         for i in (
