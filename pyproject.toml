@@ -98,4 +98,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 filterwarnings = [
     "ignore:FigureCanvasAgg is non-interactive:UserWarning",
+    # joblib internals still assign array.shape; deprecated in NumPy 2.5,
+    # awaiting an upstream joblib fix
+    "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning",
 ]
