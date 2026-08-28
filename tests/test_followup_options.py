@@ -1,3 +1,5 @@
+import pytest
+
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
@@ -38,6 +40,15 @@ def test_followup_class():
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
 
+# patsy's natural-cubic cr() basis spans the constant function, so cr() plus
+# the model Intercept is always collinear by exactly one dimension. Fitted
+# values (all the spline path is used for) are unique regardless; only the
+# individual spline coefficients are non-identified, resolved deterministically
+# by statsmodels' pinv. statsmodels >= 0.15 reports the redundancy as a
+# SingularMatrixWarning.
+@pytest.mark.filterwarnings(
+    "ignore::statsmodels.tools.sm_exceptions.SingularMatrixWarning"
+)
 def test_followup_spline():
     data = load_data("SEQdata")
 
