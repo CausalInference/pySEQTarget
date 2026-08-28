@@ -9,8 +9,8 @@ import pytest
 from pytest import approx
 
 from pySEQTarget import SEQopts, SEQuential
-from pySEQTarget.data import load_data
 from pySEQTarget.analysis._endoffup import _eof_measure
+from pySEQTarget.data import load_data
 
 
 def _eof_run(data=None, outcome="outcome", method="ITT", run=True, **opts):
@@ -222,9 +222,7 @@ def test_incompatible_options_raise():
     with pytest.raises(ValueError, match="km_curves or hazard"):
         _eof_run(end_of_fup=True, end_of_fup_time=12, hazard_estimate=True, run=False)
     with pytest.raises(ValueError, match="dose-response"):
-        _eof_run(
-            end_of_fup=True, end_of_fup_time=12, method="dose-response", run=False
-        )
+        _eof_run(end_of_fup=True, end_of_fup_time=12, method="dose-response", run=False)
     with pytest.raises(ValueError, match="compevent"):
         _eof_run(
             end_of_fup=True,
@@ -317,9 +315,7 @@ def test_estimates_table_reports_censored_share_and_partition():
     )
     assert total.to_list() == d["Trial-periods (Eligible)"].to_list()
     assert d["% Censored"].to_list() == approx(
-        (
-            100 * d["Trial-periods (Censored)"] / d["Trial-periods (Eligible)"]
-        ).to_list()
+        (100 * d["Trial-periods (Censored)"] / d["Trial-periods (Eligible)"]).to_list()
     )
 
 

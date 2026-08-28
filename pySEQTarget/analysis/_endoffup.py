@@ -93,9 +93,7 @@ def _eof_period_flags(self, DT):
     valid = pl.col(self.outcome_col).is_not_null()
     in_window = valid & (pl.col("followup") >= k - w) & (pl.col("followup") <= k + w)
 
-    return DT.group_by(
-        [self.id_col, "trial"] + _eof_group_cols(self, DT)
-    ).agg(
+    return DT.group_by([self.id_col, "trial"] + _eof_group_cols(self, DT)).agg(
         [
             (valid & (pl.col("followup") == k)).any().alias("at_k"),
             in_window.any().alias("in_window"),
@@ -122,25 +120,28 @@ def _eof_estimate(self):
     by = _eof_group_cols(self, DT)
 
     measured = _eof_measure(self, DT).with_columns(
-        pl.col("weight").clip(
-            lower_bound=self.weight_min, upper_bound=self.weight_max
-        )
+        pl.col("weight").clip(lower_bound=self.weight_min, upper_bound=self.weight_max)
     )
 
     est = measured.group_by(by).agg(
         [
-            ((pl.col("weight") * pl.col("eof_value")).sum() / pl.col("weight").sum())
-            .alias("estimate"),
+            (
+                (pl.col("weight") * pl.col("eof_value")).sum() / pl.col("weight").sum()
+            ).alias("estimate"),
             pl.len().alias("n"),
             pl.col(self.id_col).n_unique().alias("n_subjects"),
         ]
     )
-    totals = _eof_period_flags(self, DT).group_by(by).agg(
-        [
-            pl.len().alias("n_eligible"),
-            (pl.col("measured") & ~pl.col("in_window")).sum().alias("n_censored"),
-            (~pl.col("measured")).sum().alias("n_nomeasure"),
-        ]
+    totals = (
+        _eof_period_flags(self, DT)
+        .group_by(by)
+        .agg(
+            [
+                pl.len().alias("n_eligible"),
+                (pl.col("measured") & ~pl.col("in_window")).sum().alias("n_censored"),
+                (~pl.col("measured")).sum().alias("n_nomeasure"),
+            ]
+        )
     )
     return est.join(totals, on=by, how="inner").sort(by)
 
@@ -156,7 +157,12 @@ def _eof_counts(self, DT, unique):
     fall into different categories for different trials.
     """
     by = _eof_group_cols(self, DT)
-    levels = ["At k", "In window", "Excluded (outside window)", "Excluded (no measurement)"]
+    levels = [
+        "At k",
+        "In window",
+        "Excluded (outside window)",
+        "Excluded (no measurement)",
+    ]
 
     flags = _eof_period_flags(self, DT).with_columns(
         pl.when(pl.col("at_k"))
@@ -169,9 +175,7 @@ def _eof_counts(self, DT, unique):
         .alias("_category")
     )
 
-    counter = (
-        pl.col(self.id_col).n_unique() if unique else pl.len()
-    )
+    counter = pl.col(self.id_col).n_unique() if unique else pl.len()
     counted = flags.group_by(by + ["_category"]).agg(counter.alias("N"))
     wide = counted.pivot(on="_category", index=by, values="N").fill_null(0)
     for lv in levels:
@@ -220,7 +224,9 @@ def _create_endoffup(self):
 
     full = self.outcome_model[0]["eof"]
     boots = [
-        m["eof"] for m in self.outcome_model[1:] if m["eof"] is not None and m["eof"].height > 0
+        m["eof"]
+        for m in self.outcome_model[1:]
+        if m["eof"] is not None and m["eof"].height > 0
     ]
     has_ci = len(boots) > 1
     sub_in_full = sub is not None and sub in full.columns
@@ -269,9 +275,7 @@ def _create_endoffup(self):
             se = float(np.nanstd(draws, ddof=1))
             point = float(
                 full.filter(
-                    pl.all_horizontal(
-                        [pl.col(c) == v for c, v in zip(key_cols, key)]
-                    )
+                    pl.all_horizontal([pl.col(c) == v for c, v in zip(key_cols, key)])
                 )["estimate"][0]
             )
             if use_se:
@@ -294,25 +298,29 @@ def _create_endoffup(self):
             }
         )
         rename_back = {key_cols[-1]: "A"}
-        data = data.join(ci_frame.rename(rename_back), on=(["A"] if not sub_in_full else [sub, "A"]))
+        data = data.join(
+            ci_frame.rename(rename_back), on=(["A"] if not sub_in_full else [sub, "A"])
+        )
 
-    lead = ["Type", "Time"] + ([sub] if sub_in_full else []) + [
-        "A",
-        label,
-        "Trial-periods (Eligible)",
-        "Trial-periods (Analysed)",
-        "Trial-periods (Censored)",
-        "Trial-periods (No measurement)",
-        "% Censored",
-        "Subjects",
-    ]
+    lead = (
+        ["Type", "Time"]
+        + ([sub] if sub_in_full else [])
+        + [
+            "A",
+            label,
+            "Trial-periods (Eligible)",
+            "Trial-periods (Analysed)",
+            "Trial-periods (Censored)",
+            "Trial-periods (No measurement)",
+            "% Censored",
+            "Subjects",
+        ]
+    )
     data = data.select(lead + [c for c in data.columns if c not in lead])
 
     # Pairwise between-arm contrasts, both directions ========================
     rows = []
-    subgroup_vals = (
-        sorted(set(full[sub].to_list())) if sub_in_full else [None]
-    )
+    subgroup_vals = sorted(set(full[sub].to_list())) if sub_in_full else [None]
     for g in subgroup_vals:
         sub_frame = full.filter(pl.col(sub) == g) if g is not None else full
         arms = sub_frame[tx_bas].to_list()
