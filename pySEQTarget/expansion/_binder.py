@@ -101,13 +101,16 @@ def _binder(self, kept_cols):
 
     # Truncate each (id, trial) at the first outcome event so that subjects who
     # experience the outcome early are not carried forward with subsequent rows.
-    DT = DT.filter(
-        pl.col(self.outcome_col)
-        .fill_null(0)
-        .cum_max()
-        .shift(1, fill_value=0)
-        .over([self.id_col, "trial"])
-        == 0
-    )
+    # end_of_fup outcomes are measurements, not events — truncating would
+    # discard the rows the estimate is read from.
+    if not self.end_of_fup:
+        DT = DT.filter(
+            pl.col(self.outcome_col)
+            .fill_null(0)
+            .cum_max()
+            .shift(1, fill_value=0)
+            .over([self.id_col, "trial"])
+            == 0
+        )
 
     return DT

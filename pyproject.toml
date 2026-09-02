@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQTarget"
-version = "0.14.0"
+version = "0.14.1"
 description = "Sequential Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -98,4 +98,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 filterwarnings = [
     "ignore:FigureCanvasAgg is non-interactive:UserWarning",
+    # joblib internals still assign array.shape; deprecated in NumPy 2.5,
+    # awaiting an upstream joblib fix
+    "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning",
 ]

@@ -2,7 +2,8 @@ import numpy as np
 import polars as pl
 from patsy import PatsyError, dmatrix
 
-from ..helpers._fix_categories import _fix_categories_for_predict
+from ..helpers._fix_categories import (_fix_categories_for_predict,
+                                       _model_design_info)
 from ..helpers._predict_model import _safe_predict
 from ._outcome_fit import _cast_categories
 
@@ -58,7 +59,7 @@ def _cached_predict(model, X_cached, ref_column_names, data):
     _safe_predict on mismatch (e.g. a bootstrap resample that dropped a
     categorical level).
     """
-    dinfo = model.model.data.design_info
+    dinfo = _model_design_info(model)
     if list(dinfo.column_names) == ref_column_names:
         probs = np.asarray(model.predict(X_cached, transform=False))
         if not np.any(np.isnan(probs)):
@@ -78,14 +79,14 @@ def _get_outcome_predictions(self, TxDT, idx=None):
     main = self.outcome_model[0]
     main_dict = main[idx] if idx is not None else main
     main_outcome = self._offloader.load_model(main_dict["outcome"])
-    outcome_dinfo = main_outcome.model.data.design_info
+    outcome_dinfo = _model_design_info(main_outcome)
     X_outcome = _build_design_matrix(outcome_dinfo, data)
     outcome_cols = list(outcome_dinfo.column_names)
 
     X_compevent = compevent_cols = None
     if self.compevent_colname is not None:
         main_compevent = self._offloader.load_model(main_dict["compevent"])
-        compevent_dinfo = main_compevent.model.data.design_info
+        compevent_dinfo = _model_design_info(main_compevent)
         X_compevent = _build_design_matrix(compevent_dinfo, data)
         compevent_cols = list(compevent_dinfo.column_names)
 

@@ -1,5 +1,7 @@
 import numpy as np
 import polars as pl
+import pytest
+from statsmodels.tools.sm_exceptions import SingularMatrixWarning
 
 from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
@@ -63,7 +65,12 @@ def test_rare_level_not_dropped_by_bootstrap_resample():
     s = _model(data, bootstrap_nboot=8, bootstrap_sample=0.5, seed=7)
     s.expand()
     s.bootstrap()
-    s.fit()
+    # The frozen level set makes resamples lacking level "c" carry an all-zero
+    # design column, so statsmodels (>= 0.15) reports the deliberate rank
+    # deficiency; pinv resolves it with a zero coefficient. The warning is the
+    # expected signature of the mechanism under test.
+    with pytest.warns(SingularMatrixWarning):
+        s.fit()
     s.survival()  # previously raised ValueError on NaN predictions
 
     rd = s.risk_estimates["risk_difference"]

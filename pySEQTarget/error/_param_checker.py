@@ -41,6 +41,38 @@ def _param_checker(self):
     if self.km_curves and self.hazard_estimate:
         raise ValueError("km_curves and hazard cannot both be set to True.")
 
+    # end_of_fup replaces the outcome model with an average at one time - the
+    # survival outputs have no meaning and k +/- window must fit the expansion.
+    if self.end_of_fup:
+        if self.km_curves or self.hazard_estimate:
+            raise ValueError(
+                "end_of_fup is not compatible with km_curves or hazard_estimate: "
+                "an end-of-follow-up outcome is evaluated at a single time, so "
+                "there is no survival curve or hazard to estimate."
+            )
+        if self.method == "dose-response":
+            raise ValueError(
+                "end_of_fup is not supported for the dose-response method."
+            )
+        if self.compevent_colname is not None:
+            raise ValueError(
+                "end_of_fup is not compatible with compevent_colname: competing "
+                "events are a survival-outcome concept."
+            )
+        upper = self.end_of_fup_time + self.end_of_fup_window
+        if upper > self.followup_max:
+            raise ValueError(
+                f"end_of_fup_time plus end_of_fup_window ({upper}) exceeds the "
+                f"maximum follow-up ({self.followup_max}); widen followup_max or "
+                "narrow the window."
+            )
+        if self.end_of_fup_time - self.end_of_fup_window < self.followup_min:
+            raise ValueError(
+                "end_of_fup_time minus end_of_fup_window "
+                f"({self.end_of_fup_time - self.end_of_fup_window}) is below the "
+                f"minimum follow-up ({self.followup_min})."
+            )
+
     if self.hazard_estimate and self.method == "dose-response":
         raise ValueError(
             "Hazard ratio estimation is not supported for method='dose-response': "

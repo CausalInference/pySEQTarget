@@ -39,6 +39,18 @@ class SEQoutput:
     :type risk_ratio: pl.DataFrame or None
     :param risk_difference: Dataframe of risk differences, compared between treatments and subgroups
     :type risk_difference: pl.DataFrame or None
+    :param eof_data: Per-arm end-of-follow-up estimates (``end_of_fup=True``): the
+        weighted proportion (binary) or mean (continuous) read at
+        ``end_of_fup_time``, with bootstrap confidence intervals when
+        bootstrapped, the eligible trial-periods partitioned into analysed,
+        censored (measured, but not within the window) and never measured, the
+        censoring share, and the distinct contributing subjects
+    :type eof_data: pl.DataFrame or None
+    :param eof_comparison: Pairwise between-arm end-of-follow-up contrasts: the
+        difference in proportions/means with its bootstrap SE and confidence
+        interval (paired by iteration), plus — for a binary outcome only — the
+        ratio of proportions with a log-scale interval and ``log(Ratio) SE``
+    :type eof_comparison: pl.DataFrame or None
     :param time: Timings for every step of the process completed thus far
     :type time: dict or None
     :param diagnostic_tables: Diagnostic tables (outcome, follow-up, switch, and
@@ -63,6 +75,8 @@ class SEQoutput:
     km_graph: matplotlib.figure.Figure = None
     risk_ratio: pl.DataFrame = None
     risk_difference: pl.DataFrame = None
+    eof_data: pl.DataFrame = None
+    eof_comparison: pl.DataFrame = None
     time: dict = None
     diagnostic_tables: dict = None
 
@@ -132,6 +146,11 @@ class SEQoutput:
                 "nonunique_compevent",
                 "unique_switches",
                 "nonunique_switches",
+                "eof_data",
+                "eof_comparison",
+                "unique_eof",
+                "nonunique_eof",
+                "eof_summary",
             ]
         ] = None,
     ) -> pl.DataFrame:
@@ -150,12 +169,25 @@ class SEQoutput:
           (expanded rows). The nonunique count is much larger because each subject
           contributes one row per follow-up period; it is the denominator that,
           with ``nonunique_outcomes``, gives the per-arm event rate.
+        - ``unique_eof`` / ``nonunique_eof`` (``end_of_fup=True`` only): account
+          for every trial-period at the end-of-follow-up time across four
+          mutually exclusive categories — measured ``At k``, measured
+          ``In window``, ``Excluded (outside window)`` and ``Excluded (no
+          measurement)`` — against the ``Eligible`` total. The nonunique
+          (trial-period) counts partition ``Eligible``; the unique (subject)
+          counts may overlap, since one subject can fall into different
+          categories for different trials.
+        - ``eof_summary`` (continuous ``end_of_fup`` only): N/Mean/SD of the
+          analysed measurements per arm, standing in for the suppressed outcome
+          count tables.
 
         :param type: Data which you would like to access, ['km_data', 'hazard',
             'risk_ratio', 'risk_difference', 'unique_outcomes',
             'nonunique_outcomes', 'unique_followup', 'nonunique_followup',
             'unique_compevent', 'nonunique_compevent',
-            'unique_switches', 'nonunique_switches']
+            'unique_switches', 'nonunique_switches',
+            'eof_data', 'eof_comparison', 'unique_eof', 'nonunique_eof',
+            'eof_summary']
         :type type: str
         """
         match type:
@@ -166,9 +198,10 @@ class SEQoutput:
             case "risk_difference":
                 data = self.risk_difference
             case "unique_outcomes":
-                data = self.diagnostic_tables["unique_outcomes"]
+                # Absent for continuous end-of-follow-up outcomes
+                data = self.diagnostic_tables.get("unique_outcomes")
             case "nonunique_outcomes":
-                data = self.diagnostic_tables["nonunique_outcomes"]
+                data = self.diagnostic_tables.get("nonunique_outcomes")
             case "unique_followup":
                 data = self.diagnostic_tables["unique_followup"]
             case "nonunique_followup":
@@ -181,6 +214,16 @@ class SEQoutput:
                 data = self.diagnostic_tables.get("unique_switches")
             case "nonunique_switches":
                 data = self.diagnostic_tables.get("nonunique_switches")
+            case "eof_data":
+                data = self.eof_data
+            case "eof_comparison":
+                data = self.eof_comparison
+            case "unique_eof":
+                data = self.diagnostic_tables.get("unique_eof")
+            case "nonunique_eof":
+                data = self.diagnostic_tables.get("nonunique_eof")
+            case "eof_summary":
+                data = self.diagnostic_tables.get("eof_summary")
             case _:
                 data = self.km_data
         if data is None:

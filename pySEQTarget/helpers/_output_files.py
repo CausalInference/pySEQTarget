@@ -49,6 +49,17 @@ def _build_md(self, img_path: str = None) -> str:
 
     _model_section("Outcome Model", "outcome")
 
+    if getattr(self.options, "end_of_fup", False) and self.eof_data is not None:
+        lines.append("### End-of-Follow-up Outcome")
+        lines.append("")
+        lines.append(self.eof_data.to_pandas().to_markdown(index=False))
+        lines.append("")
+        if self.eof_comparison is not None and self.eof_comparison.height > 0:
+            lines.append("#### Between-arm Comparison")
+            lines.append("")
+            lines.append(self.eof_comparison.to_pandas().to_markdown(index=False))
+            lines.append("")
+
     if self.options.hazard_estimate and self.hazard is not None:
         lines.append("### Hazard")
         lines.append("")
