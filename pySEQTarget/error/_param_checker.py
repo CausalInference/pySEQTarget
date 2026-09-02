@@ -41,9 +41,8 @@ def _param_checker(self):
     if self.km_curves and self.hazard_estimate:
         raise ValueError("km_curves and hazard cannot both be set to True.")
 
-    # End-of-follow-up outcomes replace the survival outcome model with a direct
-    # weighted average at a single follow-up time, so the survival-based outputs
-    # have no meaning there and the requested time must lie inside the expansion.
+    # end_of_fup replaces the outcome model with an average at one time - the
+    # survival outputs have no meaning and k +/- window must fit the expansion.
     if self.end_of_fup:
         if self.km_curves or self.hazard_estimate:
             raise ValueError(

@@ -62,10 +62,8 @@ def _eof_measure(self, DT):
         & (pl.col("followup") <= k + w)
     ).select(cols)
 
-    # Nearest to k wins (exact k has distance 0); equidistant ties break toward
-    # the later measurement so at least k of follow-up has elapsed. followup is
-    # UInt32 in the expanded frame, so cast before differencing — unsigned
-    # subtraction wraps for followups below k and .abs() cannot recover it.
+    # Nearest to k wins; equidistant ties break toward the later measurement.
+    # Cast before differencing - followup is UInt32 and wraps below k.
     measured = (
         candidates.with_columns(
             (pl.col("followup").cast(pl.Int64) - k).abs().alias("_dist")
