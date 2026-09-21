@@ -267,10 +267,8 @@ class SEQopts:
 
     def _validate_formulas(self):
         # A list where a single formula is expected only fails much further
-        # downstream — in the column extraction or the patsy formula build —
-        # so name the offending argument here instead. Only numerator and
-        # denominator may be per-arm lists; their length is checked against
-        # treatment_level in _param_checker.
+        # downstream, so name the offending argument here. Only numerator and
+        # denominator may be per-arm lists (length checked in _param_checker).
         for i in ("covariates", "cense_numerator", "cense_denominator"):
             attr = getattr(self, i)
             if attr is not None and not isinstance(attr, str):

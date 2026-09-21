@@ -82,9 +82,8 @@ def _bake_spline_knots(formula, data):
         inner_knots, lower, upper = _compute_spline_knots(
             arr, df=df + 1 if constraints else df
         )
-        # Too few distinct values leaves knots tied with each other or sitting
-        # on a boundary; patsy rejects a basis built on those, with an error
-        # that says nothing about which term caused it.
+        # Too few distinct values ties knots to each other or to a boundary;
+        # patsy rejects that basis, without naming the term that caused it.
         if len(set(inner_knots)) < len(inner_knots) or not all(
             lower < knot < upper for knot in inner_knots
         ):
@@ -113,9 +112,8 @@ def _bake_model_formulas(self):
     for the offload and parallel paths.
     """
     if not self.followup_spline:
-        # With followup_spline the outcome formula's followup terms are
-        # rewritten (already with fixed knots) at fit time by
-        # _apply_spline_formula, which would mangle a cr() term baked in here.
+        # followup_spline rewrites the outcome's followup terms (with fixed
+        # knots) at fit time, and would mangle a cr() term baked in here.
         self.covariates = _bake_spline_knots(self.covariates, self.DT)
 
     if self.weighted:

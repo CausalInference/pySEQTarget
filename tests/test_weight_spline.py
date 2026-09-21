@@ -18,17 +18,10 @@ from pySEQTarget.initialization import _cense_denominator, _cense_numerator
 from pySEQTarget.initialization._denominator import _denominator
 from pySEQTarget.initialization._numerator import _numerator
 
-# Two warnings are expected throughout this module, and neither marks a bad fit:
-#
-# * "separation detected" — _check_separation warns on any |coef| > 25, and the
-#   last cr() basis column has a small numeric scale, so its coefficient is
-#   legitimately large (~62 with a standard error of ~35, i.e. z ~ 1.8). Every
-#   weight model here converges.
-# * "failed to converge" — from the tests that hand-write an unconstrained
-#   cr(x, df=N). That basis spans the constant function, so it is collinear
-#   with the model intercept by exactly one dimension; statsmodels' newton
-#   reports the redundancy and pinv resolves it deterministically. The terms
-#   weight_spline generates are centred and so avoid it entirely.
+# Two expected warnings, neither marking a bad fit: _check_separation trips on the
+# large (but precise, z ~ 1.8) coefficient of a small-scale cr() basis column, and
+# an unconstrained hand-written cr() is collinear with the intercept, which pinv
+# resolves after newton reports it.
 pytestmark = [
     pytest.mark.filterwarnings("ignore:Possible perfect or quasi-complete"),
     pytest.mark.filterwarnings("ignore:Maximum Likelihood optimization failed"),
@@ -127,10 +120,8 @@ def test_weight_model_knots_are_baked_from_the_data_fit_on():
         assert re.search(BAKED.format(var="trial"), covs)
         assert "df=4" not in covs
 
-    # The baked knots are the percentiles patsy would place over the
-    # post-expansion data the weight models are fit on — not, e.g., the
-    # pre-expansion time column
-    # The centred basis places df - 1 = 3 interior knots
+    # The percentiles patsy would place over the post-expansion data the weight
+    # models are fit on, df - 1 = 3 of them once the basis is centred
     followup = s.DT["followup"].to_numpy()
     expected = np.percentile(np.unique(followup), [25, 50, 75]).tolist()
     knots = re.search(r"cr\(followup, knots=\[([^]]*)\]", s.denominator).group(1)
