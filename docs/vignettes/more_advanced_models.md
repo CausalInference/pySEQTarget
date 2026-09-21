@@ -108,6 +108,38 @@ my_options = SEQopts(
 
 The rest of the analytical pipeline is unchanged — `expand()`, `fit()`, `survival()`, and `collect()` all work exactly as before.
 
+## Modelling the Baseline Hazard in the Weight Models with a Natural Cubic Spline
+
+The same choice arises in the weight models. By default they are quadratic in time: `followup`, `followup_sq`, `trial` and `trial_sq` when `weight_preexpansion=False`, and the time column and its square when `weight_preexpansion=True`. A quadratic only lets the hazard of treatment rise or flatten off, which can fit poorly when the cumulative incidence of treatment moves through several phases over followup.
+
+Setting `weight_spline=True` replaces each of those quadratics with a natural cubic spline basis (`cr()`) of `weight_spline_df` degrees of freedom, letting the baseline hazard take a flexible shape over time. This applies to the treatment weight models and, when `cense_colname` or `visit_colname` is set, to those models too.
+
+```python
+my_options = SEQopts(
+    km_curves=True,
+    weighted=True,
+    weight_preexpansion=False,
+    weight_spline=True,     # model time in the weight models as a natural cubic spline
+    weight_spline_df=4,     # 4 degrees of freedom, i.e. 2 interior knots at percentiles
+)
+```
+
+The default is unchanged (`weight_spline=False`), so existing analyses are unaffected.
+
+For finer control — a spline in `followup` but not `trial`, a different number of knots per term, or a spline in a time-varying confounder — write the `cr()` terms into `numerator` and `denominator` yourself. Any `cr(x, df=N)` term in a model formula, wherever it came from, has its knots fixed from the full data the model is fit on before fitting, so every bootstrap resample builds the same basis as the main fit.
+
+```python
+my_options = SEQopts(
+    km_curves=True,
+    weighted=True,
+    weight_preexpansion=False,
+    numerator="sex+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5)",
+    denominator="sex+N+L+P+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5)",
+)
+```
+
+After `fit()`, the `numerator` and `denominator` attributes show the formulas with their knots written out.
+
 ## That's it?
 
 Yes! There are very few differences between the code for more straightforward and more difficult analyses using this package. Our hope is that through utilizing almost only the SEQopts to work with your analysis, that this is a streamlined process that is also easy to manipulate.

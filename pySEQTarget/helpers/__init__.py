@@ -6,6 +6,8 @@ from ._output_files import _build_md, _build_pdf
 from ._pad import _pad
 from ._predict_model import _predict_model
 from ._prepare_data import _prepare_data
+from ._spline import (_bake_model_formulas, _bake_spline_knots,
+                      _compute_spline_knots)
 
 __all__ = [
     "bootstrap_loop",
@@ -17,4 +19,7 @@ __all__ = [
     "_pad",
     "_predict_model",
     "_prepare_data",
+    "_bake_model_formulas",
+    "_bake_spline_knots",
+    "_compute_spline_knots",
 ]

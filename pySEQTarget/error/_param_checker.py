@@ -90,6 +90,9 @@ def _param_checker(self):
     if self.followup_spline_df < 2:
         raise ValueError("followup_spline_df must be at least 2.")
 
+    if not isinstance(self.weight_spline_df, int) or self.weight_spline_df < 2:
+        raise ValueError("weight_spline_df must be an integer of at least 2.")
+
     if (
         self.weighted
         and self.method == "ITT"
