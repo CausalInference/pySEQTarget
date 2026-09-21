@@ -105,9 +105,11 @@ class SEQopts:
         ``weight_preexpansion=True``. Ignored for weight models whose formula is
         supplied through ``numerator``, ``denominator``, ``cense_numerator`` or
         ``cense_denominator`` — write ``cr()`` terms into those formulas directly for
-        finer control (e.g. a spline in ``followup`` only). The knots of any
-        ``cr(x, df=N)`` term are fixed from the full data before fitting, so the basis
-        is constant across bootstrap resamples
+        finer control (e.g. a spline in ``followup`` only), passing
+        ``constraints="center"`` as the generated terms do, since an unconstrained
+        ``cr()`` basis spans the constant function and so is collinear with the model
+        intercept. The knots of any ``cr(x, df=N)`` term are fixed from the full data
+        before fitting, so the basis is constant across bootstrap resamples
     :param weight_spline_df: Degrees of freedom passed to ``cr()`` when
         ``weight_spline=True``. The basis is centred, so with ``df=k`` it contributes
         ``k`` columns with ``k - 1`` interior knots at percentiles of the term. Must be

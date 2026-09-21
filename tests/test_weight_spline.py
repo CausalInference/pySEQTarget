@@ -18,6 +18,22 @@ from pySEQTarget.initialization import _cense_denominator, _cense_numerator
 from pySEQTarget.initialization._denominator import _denominator
 from pySEQTarget.initialization._numerator import _numerator
 
+# Two warnings are expected throughout this module, and neither marks a bad fit:
+#
+# * "separation detected" — _check_separation warns on any |coef| > 25, and the
+#   last cr() basis column has a small numeric scale, so its coefficient is
+#   legitimately large (~62 with a standard error of ~35, i.e. z ~ 1.8). Every
+#   weight model here converges.
+# * "failed to converge" — from the tests that hand-write an unconstrained
+#   cr(x, df=N). That basis spans the constant function, so it is collinear
+#   with the model intercept by exactly one dimension; statsmodels' newton
+#   reports the redundancy and pinv resolves it deterministically. The terms
+#   weight_spline generates are centred and so avoid it entirely.
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:Possible perfect or quasi-complete"),
+    pytest.mark.filterwarnings("ignore:Maximum Likelihood optimization failed"),
+]
+
 BAKED_PLAIN = r"cr\({var}, knots=\[[^]]*\], lower_bound=[-\d.]+, upper_bound=[-\d.]+"
 BAKED = BAKED_PLAIN + r', constraints="center"\)'
 

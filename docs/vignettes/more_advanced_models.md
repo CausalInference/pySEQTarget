@@ -120,7 +120,7 @@ my_options = SEQopts(
     weighted=True,
     weight_preexpansion=False,
     weight_spline=True,     # model time in the weight models as a natural cubic spline
-    weight_spline_df=4,     # 4 degrees of freedom, i.e. 2 interior knots at percentiles
+    weight_spline_df=4,     # 4 degrees of freedom, i.e. 3 interior knots at percentiles
 )
 ```
 
@@ -128,13 +128,15 @@ The default is unchanged (`weight_spline=False`), so existing analyses are unaff
 
 For finer control — a spline in `followup` but not `trial`, a different number of knots per term, or a spline in a time-varying confounder — write the `cr()` terms into `numerator` and `denominator` yourself. Any `cr(x, df=N)` term in a model formula, wherever it came from, has its knots fixed from the full data the model is fit on before fitting, so every bootstrap resample builds the same basis as the main fit.
 
+Pass `constraints="center"`, as the generated terms do. An unconstrained `cr()` basis spans the constant function, so it is collinear with the model intercept by exactly one dimension; statsmodels absorbs that with a pseudo-inverse (after reporting a convergence warning), but the `glum` backend cannot fit it at all.
+
 ```python
 my_options = SEQopts(
     km_curves=True,
     weighted=True,
     weight_preexpansion=False,
-    numerator="sex+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5)",
-    denominator="sex+N+L+P+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5)",
+    numerator='sex+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5, constraints="center")',
+    denominator='sex+N+L+P+N_bas+L_bas+P_bas+trial+trial_sq+cr(followup, df=5, constraints="center")',
 )
 ```
 
