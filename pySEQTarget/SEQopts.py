@@ -95,6 +95,14 @@ class SEQopts:
     :param weight_lag_condition: Boolean to fit weights based on their treatment lag
     :param weight_p99: Boolean to force weight min and max to be 1st and 99th percentile respectively
     :param weight_preexpansion: Boolean to fit weights on preexpanded data
+    :param weight_spline: Boolean to model time in the default weight models with a
+        centred natural cubic spline (patsy's ``cr()``) instead of a quadratic,
+        making the baseline hazard a flexible function of time, default ``False``.
+        Ignored for weight models given an explicit ``numerator``/``denominator``/
+        ``cense_*`` formula — write ``cr(..., constraints="center")`` terms into those
+        directly
+    :param weight_spline_df: Degrees of freedom for ``cr()`` when ``weight_spline=True``,
+        at least ``2``. Default ``4``
     :param verbose: Boolean to print dataset size summaries and bootstrap information
     :param weighted: Boolean to weight analysis
     """
@@ -156,6 +164,8 @@ class SEQopts:
     weight_lag_condition: bool = True
     weight_p99: bool = False
     weight_preexpansion: bool = True
+    weight_spline: bool = False
+    weight_spline_df: int = 4
     verbose: bool = False
     weighted: bool = False
 
@@ -177,6 +187,7 @@ class SEQopts:
             "weight_lag_condition",
             "weight_p99",
             "weight_preexpansion",
+            "weight_spline",
             "weighted",
         ]
         for i in bools:
@@ -242,6 +253,32 @@ class SEQopts:
         if self.end_of_fup_type not in ["binary", "continuous"]:
             raise ValueError("end_of_fup_type must be 'binary' or 'continuous'")
 
+    def _validate_formulas(self):
+        # A list where a single formula is expected only fails much further
+        # downstream, so name the offending argument here. Only numerator and
+        # denominator may be per-arm lists (length checked in _param_checker).
+        for i in ("covariates", "cense_numerator", "cense_denominator"):
+            attr = getattr(self, i)
+            if attr is not None and not isinstance(attr, str):
+                raise TypeError(
+                    f"{i} must be a single patsy formula string or None, but a "
+                    f"{type(attr).__name__} was supplied."
+                )
+        for i in ("numerator", "denominator"):
+            attr = getattr(self, i)
+            if attr is None or isinstance(attr, str):
+                continue
+            if not isinstance(attr, (list, tuple)):
+                raise TypeError(
+                    f"{i} must be a patsy formula string, None, or one formula "
+                    f"per treatment_level, but a {type(attr).__name__} was supplied."
+                )
+            if len(attr) == 0:
+                raise ValueError(
+                    f"{i} must be a patsy formula string, None, or one formula "
+                    "per treatment_level, but an empty sequence was supplied."
+                )
+
     def _normalize_formulas(self):
         for i in (
             "covariates",
@@ -270,6 +307,7 @@ class SEQopts:
         self._validate_bools()
         self._validate_ranges()
         self._validate_choices()
+        self._validate_formulas()
         self._normalize_formulas()
 
         if self.offload:

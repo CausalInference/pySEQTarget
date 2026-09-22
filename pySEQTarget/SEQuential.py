@@ -14,7 +14,8 @@ from .analysis import (_calculate_hazard, _calculate_survival, _clamp,
                        _risk_estimates, _subgroup_fit)
 from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
-from .helpers import Offloader, _col_string, _format_time, bootstrap_loop
+from .helpers import (Offloader, _bake_model_formulas, _col_string,
+                      _format_time, bootstrap_loop)
 from .initialization import (_cense_denominator, _cense_numerator,
                              _denominator, _numerator, _outcome)
 from .plot import _survival_plot
@@ -273,6 +274,11 @@ class SEQuential:
         boot_idx = None
         if hasattr(self, "_current_boot_idx"):
             boot_idx = self._current_boot_idx
+
+        # Fix every cr(x, df = N) term's knots from the full data the model is
+        # fit on, so each replicate builds the same basis as the main fit.
+        if boot_idx is None:
+            _bake_model_formulas(self)
 
         if self.weighted:
             # With weight_preexpansion the weight models are fit on the

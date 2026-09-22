@@ -1,32 +1,17 @@
 import re
 
-import numpy as np
 import pandas as pd
 import polars as pl
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pandas.api.types import is_numeric_dtype
 
-
-def _compute_spline_knots(followup_arr, df=3):
-    lower = float(np.min(followup_arr))
-    upper = float(np.max(followup_arr))
-    n_inner = df - 2
-    if n_inner == 0:
-        inner_knots = []
-    else:
-        # Replicate patsy's knot placement: percentiles of unique values in [lower, upper]
-        x = np.unique(followup_arr[(lower <= followup_arr) & (followup_arr <= upper)])
-        q = np.linspace(0, 100, n_inner + 2)[1:-1]
-        inner_knots = np.percentile(x, q.tolist()).tolist()
-    return inner_knots, lower, upper
+from ..helpers._spline import _compute_spline_knots, _cr_term
 
 
 def _apply_spline_formula(formula, indicator_squared, spline_knots):
     inner_knots, lower, upper = spline_knots
-    spline = (
-        f"cr(followup, knots={inner_knots}, lower_bound={lower}, upper_bound={upper})"
-    )
+    spline = _cr_term("followup", inner_knots, lower, upper)
 
     formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{spline}", formula)
     formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{spline}*\1", formula)
