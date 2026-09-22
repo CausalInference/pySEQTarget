@@ -2,8 +2,7 @@ import re
 
 import numpy as np
 
-# patsy's data-dependent spline form — the only one whose basis depends on the
-# rows it happens to be built from, and so the only one worth baking.
+# The only cr() form whose basis depends on the rows, so the only one to bake.
 _CR_DF = re.compile(
     r"""\bcr\(\s*(?P<var>[A-Za-z_.][A-Za-z0-9_.]*)\s*,\s*df\s*=\s*(?P<df>\d+)\s*
         (?:,\s*constraints\s*=\s*(?P<quote>["'])(?P<constraints>center)(?P=quote)\s*)?\)""",
@@ -12,11 +11,8 @@ _CR_DF = re.compile(
 
 
 def _compute_spline_knots(arr, df=3):
-    """
-    Knot positions patsy's ``cr()`` would place over ``arr`` for ``df``
-    degrees of freedom: ``df - 2`` interior knots at equally spaced percentiles
-    of the unique values, plus the two boundary knots.
-    """
+    """Knots patsy's ``cr()`` places over ``arr``: ``df - 2`` interior knots at
+    percentiles of the unique values and two boundary knots."""
     lower = float(np.min(arr))
     upper = float(np.max(arr))
     n_inner = df - 2
@@ -41,16 +37,8 @@ def _cr_term(var, inner_knots, lower, upper, constraints=None):
 
 def _bake_spline_knots(formula, data):
     """
-    Rewrite every ``cr(x, df=N)`` term of ``formula`` to an explicit
-    ``cr(x, knots=[...], lower_bound=..., upper_bound=...)``, with the knots
-    taken once from the full ``x`` column of ``data`` — the percentiles patsy
-    itself would use.
-
-    ``formula`` may be ``None``, a single right-hand-side formula string, or a
-    list of them (the per-treatment-level weight models), and is returned in
-    the same shape. Terms whose variable is missing from ``data``, non-numeric
-    or all-null are left alone, as are terms that already carry explicit knots.
-    """
+    Rewrite every ``cr(x, df=N)`` in ``formula`` to explicit knots taken from
+    ``data``. ``formula``"""
     if formula is None:
         return formula
     if isinstance(formula, (list, tuple)):
@@ -77,8 +65,7 @@ def _bake_spline_knots(formula, data):
         if arr.size == 0:
             continue
 
-        # A centering constraint absorbs one degree of freedom, so patsy
-        # places one more interior knot than the unconstrained form would
+        # A centering constraint absorbs one df, so patsy adds an interior knot.
         inner_knots, lower, upper = _compute_spline_knots(
             arr, df=df + 1 if constraints else df
         )
@@ -101,15 +88,9 @@ def _bake_spline_knots(formula, data):
 
 def _bake_model_formulas(self):
     """
-    Fix the knots of every ``cr(x, df=N)`` term in the model formulas, taking
-    them from the full data each model is fit on.
-
-    patsy's ``cr()`` is a stateful transform, so a fitted model already reuses
-    its own fit-time knots when predicting. What explicit knots add is a basis
-    that is identical across bootstrap resamples — each of which would
-    otherwise memorise knots from its own rows — and one that survives the
-    formula re-parse the glum backend performs when a fitted model is unpickled
-    for the offload and parallel paths.
+    Fix every ``cr(x, df=N)`` term's knots from the full data each model is fit
+    on, so bootstrap resamples and the unpickled glum offload/parallel paths all
+    build the same basis as the main fit.
     """
     if not self.followup_spline:
         # followup_spline rewrites the outcome's followup terms (with fixed

@@ -1,18 +1,8 @@
 def _time_terms(self, var: str) -> str:
     """
-    The terms a default weight model uses for a time axis ``var``.
-
-    By default this is a quadratic (``var`` and ``var_sq``), which only lets
-    the baseline hazard of treatment rise or flatten off. With
-    ``weight_spline`` it becomes a natural cubic spline basis of
-    ``weight_spline_df`` degrees of freedom instead, so the hazard can take a
-    flexible shape over time.
-
-    The spline is emitted in patsy's ``df=`` form; ``SEQuential.fit()`` fixes
-    its knots from the data the weight models are fit on, so the basis is the
-    same on the main fit and on every bootstrap resample. It is centred, since
-    an unconstrained ``cr()`` basis spans the constant function and so is
-    collinear with the model intercept by exactly one dimension.
+    Default weight-model terms for a time axis ``var``: a quadratic
+    (``var``, ``var_sq``), or a centred ``cr()`` spline of ``weight_spline_df``
+    df when ``weight_spline`` is set. Knots are fixed later from the fit data.
     """
     if self.weight_spline:
         return f'cr({var}, df={self.weight_spline_df}, constraints="center")'

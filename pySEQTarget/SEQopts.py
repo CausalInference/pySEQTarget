@@ -96,25 +96,13 @@ class SEQopts:
     :param weight_p99: Boolean to force weight min and max to be 1st and 99th percentile respectively
     :param weight_preexpansion: Boolean to fit weights on preexpanded data
     :param weight_spline: Boolean to model time in the default weight models with a
-        natural cubic spline (patsy's ``cr()``) instead of a quadratic, default
-        ``False``. This makes the baseline hazard of treatment — and of censoring, for
-        the ``cense_colname`` and ``visit_colname`` models — a flexible function of
-        time rather than one that can only rise or flatten off. The terms replaced are
-        ``trial``/``trial_sq`` and ``followup``/``followup_sq`` when
-        ``weight_preexpansion=False``, and the time column and its square when
-        ``weight_preexpansion=True``. Ignored for weight models whose formula is
-        supplied through ``numerator``, ``denominator``, ``cense_numerator`` or
-        ``cense_denominator`` — write ``cr()`` terms into those formulas directly for
-        finer control (e.g. a spline in ``followup`` only), passing
-        ``constraints="center"`` as the generated terms do, since an unconstrained
-        ``cr()`` basis spans the constant function and so is collinear with the model
-        intercept. The knots of any ``cr(x, df=N)`` term are fixed from the full data
-        before fitting, so the basis is constant across bootstrap resamples
-    :param weight_spline_df: Degrees of freedom passed to ``cr()`` when
-        ``weight_spline=True``. The basis is centred, so with ``df=k`` it contributes
-        ``k`` columns with ``k - 1`` interior knots at percentiles of the term. Must be
-        at least ``2``. Default is ``4`` (3 interior knots, matching the R package
-        SEQTaRget)
+        centred natural cubic spline (patsy's ``cr()``) instead of a quadratic,
+        making the baseline hazard a flexible function of time, default ``False``.
+        Ignored for weight models given an explicit ``numerator``/``denominator``/
+        ``cense_*`` formula — write ``cr(..., constraints="center")`` terms into those
+        directly
+    :param weight_spline_df: Degrees of freedom for ``cr()`` when ``weight_spline=True``,
+        at least ``2``. Default ``4``
     :param verbose: Boolean to print dataset size summaries and bootstrap information
     :param weighted: Boolean to weight analysis
     """
