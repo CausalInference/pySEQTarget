@@ -16,14 +16,18 @@ def _apply_spline_formula(formula, indicator_squared, spline_knots):
     inner_knots, lower, upper = spline_knots
     spline = _cr_term("followup", inner_knots, lower, upper)
 
-    formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{spline}", formula)
-    formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{spline}*\1", formula)
+    # Mark interactions first, so dropping the bare followup terms below
+    # cannot reach into the spline, which contains "followup" itself
+    mark = "_SPLINE_"
+    formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{mark}", formula)
+    formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{mark}*\1", formula)
     formula = re.sub(rf"\bfollowup{re.escape(indicator_squared)}\b", "", formula)
     formula = re.sub(r"\bfollowup\b", "", formula)
 
     formula = re.sub(r"\s+", " ", formula)
     formula = re.sub(r"\+\s*\+", "+", formula)
     formula = re.sub(r"^\s*\+\s*|\s*\+\s*$", "", formula).strip()
+    formula = formula.replace(mark, spline)
 
     if formula:
         return f"{formula} + {spline}"

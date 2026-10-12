@@ -113,3 +113,32 @@ def test_no_followup():
         0.20398559747503964,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+
+
+@pytest.mark.filterwarnings(
+    "ignore::statsmodels.tools.sm_exceptions.SingularMatrixWarning"
+)
+@pytest.mark.parametrize("method", ["ITT", "dose-response"])
+def test_followup_spline_with_km_curves_interactions(method):
+    # km_curves adds treatment- or dose-by-followup interactions, which must
+    # interact with the spline rather than lose its variable
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method=method,
+        parameters=SEQopts(
+            followup_spline=True, followup_include=False, km_curves=True
+        ),
+    )
+    s.expand()
+    s.fit()
+    s.survival()
+    names = s.outcome_model[0]["outcome"].params.index
+    assert any("cr(followup" in n and ":" in n for n in names)
+    assert s.km_data.height > 0
