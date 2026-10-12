@@ -85,18 +85,26 @@ def _eof_measure(self, DT):
 
 
 def _eof_period_flags(self, DT):
-    """One row per trial-period, flagged with what it has available."""
+    """One row per trial-period that can reach the window, flagged with what it has."""
     k = self.end_of_fup_time
     w = self.end_of_fup_window
     valid = pl.col(self.outcome_col).is_not_null()
     in_window = valid & (pl.col("followup") >= k - w) & (pl.col("followup") <= k + w)
+    last = DT["period"].max()
 
-    return DT.group_by([self.id_col, "trial"] + _eof_group_cols(self, DT)).agg(
-        [
-            (valid & (pl.col("followup") == k)).any().alias("at_k"),
-            in_window.any().alias("in_window"),
-            valid.any().alias("measured"),
-        ]
+    return (
+        DT.group_by([self.id_col, "trial"] + _eof_group_cols(self, DT))
+        .agg(
+            [
+                (pl.col("period") - pl.col("followup")).min().alias("_start"),
+                (valid & (pl.col("followup") == k)).any().alias("at_k"),
+                in_window.any().alias("in_window"),
+                valid.any().alias("measured"),
+            ]
+        )
+        # Trial-periods starting too late to reach the window before the data end
+        .filter(pl.col("_start") + k - w <= last)
+        .drop("_start")
     )
 
 
