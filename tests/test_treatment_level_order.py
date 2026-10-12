@@ -7,7 +7,7 @@ from pySEQTarget import SEQopts, SEQuential
 from pySEQTarget.data import load_data
 
 
-def _weights(dataset, treatment_level, preexpansion):
+def _weights(dataset, treatment_level, preexpansion, **opts):
     s = SEQuential(
         load_data(dataset),
         id_col="ID",
@@ -22,6 +22,7 @@ def _weights(dataset, treatment_level, preexpansion):
             weighted=True,
             weight_preexpansion=preexpansion,
             treatment_level=treatment_level,
+            **opts,
         ),
     )
     s.expand()
@@ -38,4 +39,17 @@ def _weights(dataset, treatment_level, preexpansion):
 def test_weights_match_with_treatment_level_reversed(dataset, levels, preexpansion):
     forward = _weights(dataset, levels, preexpansion)
     reverse = _weights(dataset, levels[::-1], preexpansion)
+    assert np.allclose(forward, reverse)
+
+
+@pytest.mark.filterwarnings("ignore")
+@pytest.mark.parametrize("preexpansion", [False, True])
+def test_excused_weights_match_with_treatment_level_reversed(preexpansion):
+    cols = ["excusedZero", "excusedOne"]
+    forward = _weights(
+        "SEQdata", [0, 1], preexpansion, excused=True, excused_colnames=cols
+    )
+    reverse = _weights(
+        "SEQdata", [1, 0], preexpansion, excused=True, excused_colnames=cols[::-1]
+    )
     assert np.allclose(forward, reverse)

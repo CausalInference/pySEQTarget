@@ -85,84 +85,65 @@ def _weight_predict(self, WDT):
         else:
             for i, level in enumerate(self.treatment_level):
                 col = self.excused_colnames[i]
-
-                if col is not None:
-                    denom_model = self._offloader.load_model(self.denominator_model[i])
-                    denom_mask = ((WDT["tx_lag"] == level) & (WDT[col] != 1)).to_numpy()
-
-                    if denom_model is not None and denom_mask.sum() > 0:
-                        pred_denom = np.ones(WDT.height)
-                        subset = WDT.filter(pl.Series(denom_mask))
-                        p = _predict_model(self, denom_model, subset)
-
-                        if p.ndim == 1:
-                            prob_switch = p
-                        else:
-                            prob_switch = p[:, 1] if p.shape[1] > 1 else p.flatten()
-
-                        pred_denom[denom_mask] = prob_switch
-
-                        WDT = WDT.with_columns(
-                            pl.when(pl.Series(denom_mask))
-                            .then(pl.Series(pred_denom))
-                            .otherwise(pl.col("denominator"))
-                            .alias("denominator")
-                        )
-
-                    if i == 0:
-                        flip_mask = (
-                            (WDT["tx_lag"] == level)
-                            & (WDT[col] == 0)
-                            & (WDT[self.treatment_col] == level)
-                        ).to_numpy()
-                    else:
-                        flip_mask = (
-                            (WDT["tx_lag"] == level)
-                            & (WDT[col] == 0)
-                            & (WDT[self.treatment_col] != level)
-                        ).to_numpy()
-
-                    WDT = WDT.with_columns(
-                        pl.when(pl.Series(flip_mask))
-                        .then(1.0 - pl.col("denominator"))
-                        .otherwise(pl.col("denominator"))
-                        .alias("denominator")
+                if col is None:
+                    continue
+                denom_model = self._offloader.load_model(self.denominator_model[i])
+                denom_mask = ((WDT["tx_lag"] == level) & (WDT[col] != 1)).to_numpy()
+                if denom_model is None or denom_mask.sum() == 0:
+                    continue
+                subset = WDT.filter(pl.Series(denom_mask))
+                p = _predict_model(self, denom_model, subset)
+                if self.weight_preexpansion:
+                    # Treatment model: probability of the treatment received
+                    p_level = _extract_class_probability(
+                        p, denom_model, level, is_binary
                     )
+                    stay = (subset[self.treatment_col] == level).to_numpy()
+                    prob = np.where(stay, p_level, 1.0 - p_level)
+                else:
+                    # Censoring model: probability of remaining uncensored
+                    p_cens = _extract_class_probability(p, denom_model, 1, is_binary)
+                    prob = np.where(
+                        subset["switch"].to_numpy() == 0, 1.0 - p_cens, p_cens
+                    )
+                pred_denom = np.ones(WDT.height)
+                pred_denom[denom_mask] = prob
+                WDT = WDT.with_columns(
+                    pl.when(pl.Series(denom_mask))
+                    .then(pl.Series(pred_denom))
+                    .otherwise(pl.col("denominator"))
+                    .alias("denominator")
+                )
 
             if self.weight_preexpansion:
                 WDT = WDT.with_columns(pl.lit(1.0).alias("numerator"))
             else:
                 for i, level in enumerate(self.treatment_level):
                     col = self.excused_colnames[i]
+                    if col is None:
+                        continue
+                    num_model = self._offloader.load_model(self.numerator_model[i])
+                    num_mask = (
+                        (WDT[self.treatment_col] == level) & (WDT[col] == 0)
+                    ).to_numpy()
+                    if num_model is None or num_mask.sum() == 0:
+                        continue
+                    subset = WDT.filter(pl.Series(num_mask))
+                    p = _predict_model(self, num_model, subset)
+                    pred_num = np.ones(WDT.height)
+                    pred_num[num_mask] = _extract_class_probability(
+                        p, num_model, 1, is_binary
+                    )
+                    WDT = WDT.with_columns(
+                        pl.when(pl.Series(num_mask))
+                        .then(pl.Series(pred_num))
+                        .otherwise(pl.col("numerator"))
+                        .alias("numerator")
+                    )
 
-                    if col is not None:
-                        num_model = self._offloader.load_model(self.numerator_model[i])
-                        num_mask = (
-                            (WDT[self.treatment_col] == level) & (WDT[col] == 0)
-                        ).to_numpy()
-
-                        if num_model is not None and num_mask.sum() > 0:
-                            pred_num = np.ones(WDT.height)
-                            subset = WDT.filter(pl.Series(num_mask))
-                            p = _predict_model(self, num_model, subset)
-
-                            if p.ndim == 1:
-                                prob_switch = p
-                            else:
-                                prob_switch = p[:, 1] if p.shape[1] > 1 else p.flatten()
-
-                            pred_num[num_mask] = prob_switch
-
-                            WDT = WDT.with_columns(
-                                pl.when(pl.Series(num_mask))
-                                .then(pl.Series(pred_num))
-                                .otherwise(pl.col("numerator"))
-                                .alias("numerator")
-                            )
-
-                first_level = self.treatment_level[0]
+                # As for the denominator, the model predicts P(censored)
                 WDT = WDT.with_columns(
-                    pl.when(pl.col(self.treatment_col) == first_level)
+                    pl.when(pl.col("switch") == 0)
                     .then(1.0 - pl.col("numerator"))
                     .otherwise(pl.col("numerator"))
                     .alias("numerator")
