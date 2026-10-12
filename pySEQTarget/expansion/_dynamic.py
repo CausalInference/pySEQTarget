@@ -33,8 +33,9 @@ def _dynamic(self):
             for i, val in enumerate(self.treatment_level):
                 colname = self.excused_colnames[i]
                 if colname is not None:
+                    # Column i excuses a switch away from level i, as in the weight models
                     conditions.append(
-                        (pl.col(colname) == 1) & (pl.col(self.treatment_col) == val)
+                        (pl.col(colname) == 1) & (pl.col("tx_lag") == val)
                     )
 
             if conditions:
