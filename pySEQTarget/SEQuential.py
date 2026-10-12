@@ -312,8 +312,14 @@ class SEQuential:
 
                 _fit_LTFU(self, WDT_pd)
                 _fit_visit(self, WDT_pd)
-                _fit_numerator(self, WDT_pd)
-                _fit_denominator(self, WDT_pd)
+                # A subject's first row has no previous treatment (tx_lag is a fill)
+                tx_WDT_pd = (
+                    WDT_pd[WDT_pd.groupby(self.id_col).cumcount() > 0]
+                    if self.weight_preexpansion
+                    else WDT_pd
+                )
+                _fit_numerator(self, tx_WDT_pd)
+                _fit_denominator(self, tx_WDT_pd)
 
                 if self.offload:
                     _offload_weights(self, boot_idx)
