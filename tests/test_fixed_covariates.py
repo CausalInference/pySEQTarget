@@ -63,8 +63,13 @@ def test_subgroup_drops_only_the_subgroup_column_from_the_outcome_model():
         time_varying_cols=["N", "L", "P"],
         fixed_cols=["sex", "age"],
         method="ITT",
-        parameters=SEQopts(subgroup_colname="sex"),
+        parameters=SEQopts(subgroup_colname="sex", km_curves=True),
     )
     terms = s.covariates.split("+")
     assert "age" in terms
     assert "sex" not in terms
+    # Still carried through the expansion to split the analysis by
+    s.expand()
+    s.fit()
+    s.survival()
+    assert set(s.km_data["sex"].unique()) == {0, 1}

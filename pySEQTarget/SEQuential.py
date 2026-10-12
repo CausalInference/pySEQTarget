@@ -147,6 +147,7 @@ class SEQuential:
             self.cense_eligible_colname,
             self.compevent_colname,
             self.visit_colname,
+            self.subgroup_colname,
             *self.weight_eligible_colnames,
             *self.excused_colnames,
         ]
