@@ -1,3 +1,4 @@
+import pytest
 from pytest import approx
 
 from pySEQTarget import SEQopts, SEQuential
@@ -342,6 +343,7 @@ def test_ITT_multinomial():
     assert matrix == approx(expected, rel=1e-3)
 
 
+@pytest.mark.filterwarnings("ignore:overflow encountered in exp:RuntimeWarning")
 def test_weighted_multinomial():
     data = load_data("SEQdata_multitreatment")
 
@@ -361,17 +363,21 @@ def test_weighted_multinomial():
     )
     s.expand()
     s.fit()
-    matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
-    expected = [
-        -434.5477209025554,
-        -21.903908253317347,
-        0.7744444103257456,
-        -0.2841674407328827,
-        24.339152289244993,
-        -0.3621057042257281,
-        21.831769438158425,
-    ]
-    assert matrix == approx(expected, rel=1e-3)
+    # The outcome model has no events in arm 2, so its fit diverges (and
+    # overflows); pin the multinomial weights instead
+    stats = s.weight_stats.row(0, named=True)
+    expected = {
+        "weight_min": 0.6247271882268575,
+        "weight_max": 1.3120226973615323,
+        "weight_mean": 0.9947273760015201,
+        "weight_std": 0.05493659250756025,
+        "weight_p01": 0.8251337794242161,
+        "weight_p25": 0.972097606970619,
+        "weight_p50": 0.9968156083037403,
+        "weight_p75": 1.0164134507964089,
+        "weight_p99": 1.1626440219480307,
+    }
+    assert stats == approx(expected, rel=1e-3)
 
 
 def test_ITT_visit():
