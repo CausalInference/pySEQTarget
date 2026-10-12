@@ -125,6 +125,8 @@ def _fit_numerator(self, WDT):
             model_fit = smf.mnlogit(formula, DT_subset).fit(
                 disp=0, method=self.weight_fit_method
             )
+            # Column order of mnlogit predictions, to look classes up by value
+            model_fit.seq_classes = sorted(DT_subset[predictor].unique().tolist())
         _check_separation(model_fit, label=f"numerator (level {level})")
         fits.append(model_fit)
 
@@ -166,6 +168,8 @@ def _fit_denominator(self, WDT):
             model_fit = smf.mnlogit(formula, DT_subset).fit(
                 disp=0, method=self.weight_fit_method
             )
+            # Column order of mnlogit predictions, to look classes up by value
+            model_fit.seq_classes = sorted(DT_subset[predictor].unique().tolist())
         _check_separation(model_fit, label=f"denominator (level {level})")
         fits.append(model_fit)
 
