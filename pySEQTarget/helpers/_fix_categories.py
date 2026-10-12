@@ -1,4 +1,13 @@
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
+
+
+def _cast_fixed_categories(fixed_cols, df):
+    """Cast non-numeric fixed covariates to category; numeric ones stay continuous."""
+    for col in fixed_cols:
+        if col in df.columns and not is_numeric_dtype(df[col]):
+            df[col] = df[col].astype("category")
+    return df
 
 
 def _model_design_info(model):

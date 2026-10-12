@@ -16,6 +16,7 @@ from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import (Offloader, _bake_model_formulas, _col_string,
                       _format_time, bootstrap_loop)
+from .helpers._fix_categories import _cast_fixed_categories
 from .initialization import (_cense_denominator, _cense_numerator,
                              _denominator, _numerator, _outcome)
 from .plot import _survival_plot
@@ -41,7 +42,8 @@ class SEQuential:
     :param treatment_col: Column name specifying treatment per time_col
     :param outcome_col: Column name specifying outcome per time_col
     :param time_varying_cols: Time-varying column names as covariates (BMI, Age, etc.)
-    :param fixed_cols: Fixed column names as covariates (Sex, YOB, etc.)
+    :param fixed_cols: Fixed column names as covariates (Sex, YOB, etc.). Numeric
+        columns enter as continuous; supply categorical ones as string or Categorical
     :param method: Method for analysis ['ITT', 'dose-response', or 'censoring']
     :param parameters: Parameters to augment analysis, specified with ``pySEQTarget.SEQopts``
     :type parameters: Optional[SEQopts] or None
@@ -306,10 +308,7 @@ class SEQuential:
                 # models on `self` - so we keep the original polars frame for
                 # the downstream steps rather than paying a pl.from_pandas()
                 # round-trip per replicate.
-                WDT_pd = WDT_pl.to_pandas()
-                for col in self.fixed_cols:
-                    if col in WDT_pd.columns:
-                        WDT_pd[col] = WDT_pd[col].astype("category")
+                WDT_pd = _cast_fixed_categories(self.fixed_cols, WDT_pl.to_pandas())
 
                 _fit_LTFU(self, WDT_pd)
                 _fit_visit(self, WDT_pd)

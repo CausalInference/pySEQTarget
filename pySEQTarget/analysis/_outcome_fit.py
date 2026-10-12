@@ -6,6 +6,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pandas.api.types import is_numeric_dtype
 
+from ..helpers._fix_categories import _cast_fixed_categories
 from ..helpers._spline import _compute_spline_knots, _cr_term
 
 
@@ -54,10 +55,7 @@ def _cast_categories(self, df_pd):
         if squared_col in df_pd.columns:
             df_pd[squared_col] = df_pd[squared_col].astype("category")
 
-    if self.fixed_cols:
-        for col in self.fixed_cols:
-            if col in df_pd.columns:
-                df_pd[col] = df_pd[col].astype("category")
+    _cast_fixed_categories(self.fixed_cols, df_pd)
 
     # Stable factor encoding for categorical time-varying covariates: fix the
     # level set from the full expanded data (captured on the non-bootstrap

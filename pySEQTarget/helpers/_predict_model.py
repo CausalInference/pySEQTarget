@@ -1,6 +1,7 @@
 import numpy as np
 
-from ._fix_categories import _fix_categories_for_predict
+from ._fix_categories import (_cast_fixed_categories,
+                              _fix_categories_for_predict)
 
 
 def _safe_predict(model, data, clip_probs=True):
@@ -42,17 +43,13 @@ def _safe_predict(model, data, clip_probs=True):
 
 
 def _prep_predict_frame(self, newdata):
-    """Convert a polars frame to pandas with fixed_cols cast to category.
+    """Convert a polars frame to pandas with non-numeric fixed_cols cast to category.
 
     Split out from _predict_model so callers predicting with several models on
     the same rows (e.g. numerator + denominator in _weight_predict) can pay
     the conversion once and share the frame.
     """
-    newdata = newdata.to_pandas()
-    for col in self.fixed_cols:
-        if col in newdata.columns:
-            newdata[col] = newdata[col].astype("category")
-    return newdata
+    return _cast_fixed_categories(self.fixed_cols, newdata.to_pandas())
 
 
 def _predict_model_pd(model, newdata):
