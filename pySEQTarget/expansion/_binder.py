@@ -22,22 +22,13 @@ def _binder(self, kept_cols):
     cols = kept_cols.union({self.eligible_col, self.outcome_col, self.treatment_col})
     cols = {col for col in cols if col is not None}
 
-    regular = {
-        col
-        for col in cols
-        if not (self.indicator_baseline in col or self.indicator_squared in col)
-        and col not in excluded
-    }
-
-    baseline = {
-        col for col in cols if self.indicator_baseline in col and col not in excluded
-    }
-    bas_kept = {col.replace(self.indicator_baseline, "") for col in baseline}
-
-    squared = {
-        col for col in cols if self.indicator_squared in col and col not in excluded
-    }
-    sq_kept = {col.replace(self.indicator_squared, "") for col in squared}
+    # The indicators are suffixes, so e.g. "bmi_baseline" is a regular column
+    bas_sfx, sq_sfx = self.indicator_baseline, self.indicator_squared
+    baseline = {c for c in cols if c.endswith(bas_sfx) and c not in excluded}
+    squared = {c for c in cols if c.endswith(sq_sfx) and c not in excluded}
+    regular = cols - baseline - squared - excluded
+    bas_kept = {c[: -len(bas_sfx)] for c in baseline}
+    sq_kept = {c[: -len(sq_sfx)] for c in squared}
 
     kept = list(regular.union(bas_kept).union(sq_kept))
 
@@ -72,12 +63,11 @@ def _binder(self, kept_cols):
 
     if squared:
         squares = []
-        for sq in squared:
-            col = sq.replace(self.indicator_squared, "")
-            squares.append((pl.col(col) ** 2).alias(f"{col}{self.indicator_squared}"))
+        for col in sq_kept:
+            squares.append((pl.col(col) ** 2).alias(f"{col}{sq_sfx}"))
         DT = DT.with_columns(squares)
 
-    baseline_cols = {bas.replace(self.indicator_baseline, "") for bas in baseline}
+    baseline_cols = set(bas_kept)
     needed = {self.eligible_col, self.treatment_col}
     baseline_cols.update({c for c in needed})
 
