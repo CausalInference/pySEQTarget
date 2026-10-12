@@ -1,7 +1,16 @@
 import numpy as np
 
+from ._check_design import _check_design
 from ._fix_categories import (_cast_fixed_categories,
-                              _fix_categories_for_predict)
+                              _fix_categories_for_predict, _model_design_info)
+
+
+def _check_predictions(model, data, probs):
+    """If predictions are NaN because a model term is undefined, say which."""
+    if np.any(np.isnan(probs)):
+        design_info = _model_design_info(model)
+        if design_info is not None:
+            _check_design(design_info, data)
 
 
 def _safe_predict(model, data, clip_probs=True):
@@ -30,6 +39,7 @@ def _safe_predict(model, data, clip_probs=True):
 
     if clip_probs:
         probs = np.array(probs)
+        _check_predictions(model, data, probs)
         if np.any(np.isnan(probs)):
             raise ValueError(
                 "NaN values in predicted probabilities. This typically indicates "
@@ -55,13 +65,14 @@ def _prep_predict_frame(self, newdata):
 def _predict_model_pd(model, newdata):
     """Predict on an already-prepared pandas frame, with category fix retry."""
     try:
-        return np.array(model.predict(newdata))
+        probs = np.array(model.predict(newdata))
     except Exception as e:
-        if "mismatching levels" in str(e):
-            newdata = _fix_categories_for_predict(model, newdata)
-            return np.array(model.predict(newdata))
-        else:
+        if "mismatching levels" not in str(e):
             raise
+        newdata = _fix_categories_for_predict(model, newdata)
+        probs = np.array(model.predict(newdata))
+    _check_predictions(model, newdata, probs)
+    return probs
 
 
 def _predict_model(self, model, newdata):

@@ -1,11 +1,13 @@
 import re
 
+import numpy as np  # noqa: F401 - formulas are evaluated here, e.g. np.log(x)
 import pandas as pd
 import polars as pl
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pandas.api.types import is_numeric_dtype
 
+from ..helpers._check_design import _check_design
 from ..helpers._fix_categories import _cast_fixed_categories
 from ..helpers._spline import _compute_spline_knots, _cr_term
 
@@ -106,6 +108,8 @@ def _outcome_fit(
             formula, self.indicator_squared, self._followup_spline_knots
         )
 
+    if getattr(self, "_current_boot_idx", None) is None:
+        _check_design(formula, df_pd)
     full_formula = f"{outcome} ~ {formula}"
     var_weights = df_pd[weight_col] if weighted else None
 
