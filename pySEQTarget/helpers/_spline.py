@@ -1,6 +1,7 @@
 import re
 
 import numpy as np
+import patsy
 
 # The only cr() form whose basis depends on the rows, so the only one to bake.
 _CR_DF = re.compile(
@@ -27,8 +28,10 @@ def _compute_spline_knots(arr, df=3):
 
 
 def _cr_term(var, inner_knots, lower, upper, constraints=None):
-    """A ``cr()`` term with its knots written out."""
-    constraint = f', constraints="{constraints}"' if constraints else ""
+    """A ``cr()`` term with its knots, and any linear constraint, written out."""
+    constraint = (
+        f", constraints=[{list(constraints)}]" if constraints is not None else ""
+    )
     return (
         f"cr({var}, knots={list(inner_knots)}, "
         f"lower_bound={lower}, upper_bound={upper}{constraint})"
@@ -79,6 +82,13 @@ def _bake_spline_knots(formula, data):
                 f"{len(inner_knots)} interior knot(s) for cr(df={df}); use a "
                 "smaller df, or model this term without a spline."
             )
+        if constraints:
+            # patsy's centring constraint (the basis column means) also depends
+            # on the rows it sees, so fix it from the full data too
+            basis = patsy.dmatrix(
+                _cr_term("x", inner_knots, lower, upper) + "-1", {"x": arr}
+            )
+            constraints = np.asarray(basis).mean(axis=0).tolist()
         formula = formula.replace(
             token, _cr_term(var, inner_knots, lower, upper, constraints)
         )

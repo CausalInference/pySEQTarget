@@ -53,15 +53,40 @@ def _build_design_matrix(design_info, data):
         return np.asarray(dmatrix(design_info, fixed))
 
 
-def _cached_predict(model, X_cached, ref_column_names, data):
+def _same_state(a, b):
+    """Deep equality of memorised transform state (dicts, arrays, objects)."""
+    if isinstance(a, dict):
+        return (
+            isinstance(b, dict)
+            and a.keys() == b.keys()
+            and all(_same_state(a[k], b[k]) for k in a)
+        )
+    if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+        return isinstance(a, np.ndarray) and np.array_equal(a, b)
+    if hasattr(a, "__dict__"):
+        return type(a) is type(b) and _same_state(vars(a), vars(b))
+    return a == b
+
+
+def _transform_state(design_info):
+    """What stateful transforms such as center() or cr() memorised at fit."""
+    return {
+        f.name(): fi.state.get("transforms", {})
+        for f, fi in design_info.factor_infos.items()
+        if isinstance(fi.state, dict)
+    }
+
+
+def _cached_predict(model, X_cached, ref_dinfo, data):
     """
-    Predict using a pre-built design matrix when the model's design_info
-    column structure matches the reference, falling back to patsy via
-    _safe_predict on mismatch (e.g. a bootstrap resample that dropped a
-    categorical level).
+    Predict using a pre-built design matrix when the model's design matches the
+    reference — same columns and same memorised transform state — falling back
+    to patsy via _safe_predict otherwise (e.g. a resample that dropped a level).
     """
     dinfo = _model_design_info(model)
-    if list(dinfo.column_names) == ref_column_names:
+    if list(dinfo.column_names) == list(ref_dinfo.column_names) and _same_state(
+        _transform_state(dinfo), _transform_state(ref_dinfo)
+    ):
         probs = np.asarray(model.predict(X_cached, transform=False))
         if not np.any(np.isnan(probs)):
             return np.clip(probs, 0, 1)
@@ -82,14 +107,12 @@ def _get_outcome_predictions(self, TxDT, val=None):
     main_outcome = self._offloader.load_model(main_dict["outcome"])
     outcome_dinfo = _model_design_info(main_outcome)
     X_outcome = _build_design_matrix(outcome_dinfo, data)
-    outcome_cols = list(outcome_dinfo.column_names)
 
-    X_compevent = compevent_cols = None
+    X_compevent = compevent_dinfo = None
     if self.compevent_colname is not None:
         main_compevent = self._offloader.load_model(main_dict["compevent"])
         compevent_dinfo = _model_design_info(main_compevent)
         X_compevent = _build_design_matrix(compevent_dinfo, data)
-        compevent_cols = list(compevent_dinfo.column_names)
 
     for boot_model in self.outcome_model:
         if val is not None and val not in boot_model:
@@ -97,13 +120,13 @@ def _get_outcome_predictions(self, TxDT, val=None):
         model_dict = boot_model[val] if val is not None else boot_model
         outcome_model = self._offloader.load_model(model_dict["outcome"])
         predictions["outcome"].append(
-            _cached_predict(outcome_model, X_outcome, outcome_cols, data)
+            _cached_predict(outcome_model, X_outcome, outcome_dinfo, data)
         )
 
         if self.compevent_colname is not None:
             compevent_model = self._offloader.load_model(model_dict["compevent"])
             predictions["compevent"].append(
-                _cached_predict(compevent_model, X_compevent, compevent_cols, data)
+                _cached_predict(compevent_model, X_compevent, compevent_dinfo, data)
             )
 
     return predictions
