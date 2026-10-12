@@ -6,6 +6,7 @@ from ..helpers._fix_categories import (_fix_categories_for_predict,
                                        _model_design_info)
 from ..helpers._predict_model import _safe_predict
 from ._outcome_fit import _cast_categories
+from ._subgroup_fit import _warn_missing_subgroup
 
 
 def _store_boot_risks(obj, treatment_val, TxDT, boot_cols, is_survival=False):
@@ -67,7 +68,7 @@ def _cached_predict(model, X_cached, ref_column_names, data):
     return _safe_predict(model, data)
 
 
-def _get_outcome_predictions(self, TxDT, idx=None):
+def _get_outcome_predictions(self, TxDT, val=None):
     data = _cast_categories(self, TxDT.to_pandas())
     predictions = {"outcome": []}
     if self.compevent_colname is not None:
@@ -77,7 +78,7 @@ def _get_outcome_predictions(self, TxDT, idx=None):
     # Each bootstrap model that shares the same column structure can then
     # reuse it, skipping patsy entirely on the predict path.
     main = self.outcome_model[0]
-    main_dict = main[idx] if idx is not None else main
+    main_dict = main[val] if val is not None else main
     main_outcome = self._offloader.load_model(main_dict["outcome"])
     outcome_dinfo = _model_design_info(main_outcome)
     X_outcome = _build_design_matrix(outcome_dinfo, data)
@@ -91,7 +92,9 @@ def _get_outcome_predictions(self, TxDT, idx=None):
         compevent_cols = list(compevent_dinfo.column_names)
 
     for boot_model in self.outcome_model:
-        model_dict = boot_model[idx] if idx is not None else boot_model
+        if val is not None and val not in boot_model:
+            continue
+        model_dict = boot_model[val] if val is not None else boot_model
         outcome_model = self._offloader.load_model(model_dict["outcome"])
         predictions["outcome"].append(
             _cached_predict(outcome_model, X_outcome, outcome_cols, data)
@@ -107,28 +110,27 @@ def _get_outcome_predictions(self, TxDT, idx=None):
 
 
 def _pred_risk(self):
-    has_subgroups = (
-        isinstance(self.outcome_model[0], list) if self.outcome_model else False
-    )
+    has_subgroups = self.subgroup_colname is not None and bool(self.outcome_model)
 
     self._boot_risks = {}
 
     if not has_subgroups:
-        return _calculate_risk(self, self.DT, idx=None, val=None)
+        return _calculate_risk(self, self.DT, val=None)
 
     all_risks = []
     original_DT = self.DT
 
-    for i, val in enumerate(self._unique_subgroups):
+    for val in self._unique_subgroups:
+        _warn_missing_subgroup(self, val)
         subgroup_DT = original_DT.filter(pl.col(self.subgroup_colname) == val)
-        risk = _calculate_risk(self, subgroup_DT, i, val)
+        risk = _calculate_risk(self, subgroup_DT, val)
         all_risks.append(risk)
 
     self.DT = original_DT
     return pl.concat(all_risks)
 
 
-def _calculate_risk(self, data, idx=None, val=None):
+def _calculate_risk(self, data, val=None):
     a = 1 - self.bootstrap_CI
     lci = a / 2
     uci = 1 - lci
@@ -178,7 +180,7 @@ def _calculate_risk(self, data, idx=None, val=None):
                     ]
                 )
 
-        preds = _get_outcome_predictions(self, TxDT, idx=idx)
+        preds = _get_outcome_predictions(self, TxDT, val=val)
 
         # Drop original data columns — only followup and TID needed from here
         TxDT = TxDT.select(["followup", "TID"])

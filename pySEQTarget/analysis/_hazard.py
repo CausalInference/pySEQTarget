@@ -8,28 +8,30 @@ from lifelines import CoxPHFitter
 
 from ..helpers._predict_model import _safe_predict
 from ._outcome_fit import _cast_categories
+from ._subgroup_fit import _warn_missing_subgroup
 
 
 def _calculate_hazard(self):
     if self.subgroup_colname is None:
-        return _calculate_hazard_single(self, self.DT, idx=None, val=None)
+        return _calculate_hazard_single(self, self.DT, val=None)
 
     all_hazards = []
     original_DT = self.DT
 
-    for i, val in enumerate(self._unique_subgroups):
+    for val in self._unique_subgroups:
+        _warn_missing_subgroup(self, val)
         subgroup_DT = original_DT.filter(pl.col(self.subgroup_colname) == val)
-        hazard = _calculate_hazard_single(self, subgroup_DT, i, val)
+        hazard = _calculate_hazard_single(self, subgroup_DT, val)
         all_hazards.append(hazard)
 
     self.DT = original_DT
     return pl.concat(all_hazards)
 
 
-def _calculate_hazard_single(self, data, idx=None, val=None):
+def _calculate_hazard_single(self, data, val=None):
     if self.seed is not None:
         self._rng = np.random.RandomState(self.seed)
-    full_log_hr = _hazard_handler(self, data, idx, 0, self._rng)
+    full_log_hr = _hazard_handler(self, data, val, 0, self._rng)
 
     if full_log_hr is None or np.isnan(full_log_hr):
         return _create_hazard_output(None, None, None, val, self)
@@ -47,11 +49,11 @@ def _calculate_hazard_single(self, data, idx=None, val=None):
         # seed (always set since SEQuential pins a default) so each replicate's
         # RNG — and therefore the result — is identical to the serial path.
         if getattr(self, "parallel", False) and self.seed is not None:
-            boot_log_hrs = _parallel_boot_log_hrs(self, data, idx, boot_sample_idx)
+            boot_log_hrs = _parallel_boot_log_hrs(self, data, val, boot_sample_idx)
         else:
             boot_log_hrs = []
             for model_pos, sample_idx in enumerate(boot_sample_idx):
-                boot_log_hr = _one_boot_log_hr(self, data, idx, model_pos, sample_idx)
+                boot_log_hr = _one_boot_log_hr(self, data, val, model_pos, sample_idx)
                 if boot_log_hr is not None and not np.isnan(boot_log_hr):
                     boot_log_hrs.append(boot_log_hr)
 
@@ -108,7 +110,7 @@ def _truncate_to_first_event(tmp, id_col, event_col):
     )
 
 
-def _one_boot_log_hr(self, data, idx, model_pos, sample_idx):
+def _one_boot_log_hr(self, data, val, model_pos, sample_idx):
     """Build one bootstrap resample of ``data`` and return its log hazard ratio.
 
     The RNG is rebuilt from ``seed + sample_idx + 1`` (matching the serial loop
@@ -134,7 +136,7 @@ def _one_boot_log_hr(self, data, idx, model_pos, sample_idx):
         .drop("_count", "_rep")
         .collect()
     )
-    return _hazard_handler(self, boot_data, idx, model_pos + 1, rng)
+    return _hazard_handler(self, boot_data, val, model_pos + 1, rng)
 
 
 # Process-pool worker state. Set once per worker process by the initializer so
@@ -150,11 +152,11 @@ def _hazard_pool_init(obj, data_ref):
     _HZ_WORKER_DATA = obj._offloader.load_dataframe(data_ref)
 
 
-def _hazard_pool_task(idx, model_pos, sample_idx):
-    return _one_boot_log_hr(_HZ_WORKER_OBJ, _HZ_WORKER_DATA, idx, model_pos, sample_idx)
+def _hazard_pool_task(val, model_pos, sample_idx):
+    return _one_boot_log_hr(_HZ_WORKER_OBJ, _HZ_WORKER_DATA, val, model_pos, sample_idx)
 
 
-def _parallel_boot_log_hrs(self, data, idx, boot_sample_idx):
+def _parallel_boot_log_hrs(self, data, val, boot_sample_idx):
     """Run the bootstrap hazard simulations over a process pool.
 
     The analysis frame is handed to each worker process once (via the offloader
@@ -162,7 +164,7 @@ def _parallel_boot_log_hrs(self, data, idx, boot_sample_idx):
     models. Results are gathered in submission order, matching the serial loop;
     NaN/None replicates are dropped the same way.
     """
-    data_ref = self._offloader.save_dataframe(data, f"_haz_DT_{idx}")
+    data_ref = self._offloader.save_dataframe(data, f"_haz_DT_{val}")
 
     # Slim copy for the pool: drop the large frames workers reload from data_ref;
     # keep the fitted models, bootstrap samples, and config. _GlumFit and
@@ -179,7 +181,7 @@ def _parallel_boot_log_hrs(self, data, idx, boot_sample_idx):
         initargs=(slim, data_ref),
     ) as executor:
         futures = [
-            executor.submit(_hazard_pool_task, idx, model_pos, sample_idx)
+            executor.submit(_hazard_pool_task, val, model_pos, sample_idx)
             for model_pos, sample_idx in enumerate(boot_sample_idx)
         ]
         for future in futures:
@@ -190,7 +192,7 @@ def _parallel_boot_log_hrs(self, data, idx, boot_sample_idx):
     return boot_log_hrs
 
 
-def _hazard_handler(self, data, idx, boot_idx, rng):
+def _hazard_handler(self, data, val, boot_idx, rng):
     exclude_cols = [
         "followup",
         f"followup{self.indicator_squared}",
@@ -215,8 +217,10 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
         )
     )
 
-    if idx is not None:
-        model_dict = self.outcome_model[boot_idx][idx]
+    if val is not None:
+        model_dict = self.outcome_model[boot_idx].get(val)
+        if model_dict is None:
+            return None
     else:
         model_dict = self.outcome_model[boot_idx]
 
@@ -226,9 +230,13 @@ def _hazard_handler(self, data, idx, boot_idx, rng):
         ce_model = self._offloader.load_model(model_dict["compevent"])
 
     all_treatments = []
-    for val in self.treatment_level:
+    for treatment_val in self.treatment_level:
         tmp = trials.with_columns(
-            [pl.lit(val).alias(f"{self.treatment_col}{self.indicator_baseline}")]
+            [
+                pl.lit(treatment_val).alias(
+                    f"{self.treatment_col}{self.indicator_baseline}"
+                )
+            ]
         )
 
         tmp_pd = _cast_categories(self, tmp.to_pandas())

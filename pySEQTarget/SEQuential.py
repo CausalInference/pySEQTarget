@@ -361,7 +361,7 @@ class SEQuential:
                         key: (m.params.values, list(m.model.exog_names))
                         for key, m in sg.items()
                     }
-                    for val, sg in zip(self._unique_subgroups, models_list)
+                    for val, sg in models_list.items()
                 }
             return models_list
 
