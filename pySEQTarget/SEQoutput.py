@@ -88,7 +88,7 @@ class SEQoutput:
 
     def plot(self) -> None:
         """
-        Displays the Kaplan-Meier graph
+        Displays the survival, risk or incidence plot
         """
         if self.km_graph is None:
             raise ValueError(
