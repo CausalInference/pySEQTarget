@@ -28,6 +28,14 @@ jobs:
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
 
+    # tabmat and glum have no Python 3.15 wheels yet, so they build from source
+    - name: Install build dependencies for Python 3.15
+      if: matrix.python-version == '3.15'
+      run: |
+        brew install libomp xsimd jemalloc
+        echo "CPPFLAGS=-I$(brew --prefix libomp)/include -I$(brew --prefix xsimd)/include -I$(brew --prefix jemalloc)/include" >> "$GITHUB_ENV"
+        echo "LDFLAGS=-L$(brew --prefix libomp)/lib -L$(brew --prefix jemalloc)/lib" >> "$GITHUB_ENV"
+
     - name: Install dependencies
       run: |
         uv venv --python ${{ matrix.python-version }}
