@@ -157,8 +157,9 @@ def _weight_predict(self, WDT):
         cense_denom_model = self._offloader.load_model(self.cense_denominator_model)
         if cense_num_model is not None and cense_denom_model is not None:
             WDT_pd = _prep_predict_frame(self, WDT)
-            p_num = _predict_model_pd(cense_num_model, WDT_pd).flatten()
-            p_denom = _predict_model_pd(cense_denom_model, WDT_pd).flatten()
+            # The models predict P(lost); the weight uses P(remaining), as in R
+            p_num = 1.0 - _predict_model_pd(cense_num_model, WDT_pd).flatten()
+            p_denom = 1.0 - _predict_model_pd(cense_denom_model, WDT_pd).flatten()
             WDT = (
                 WDT.with_columns(
                     [
