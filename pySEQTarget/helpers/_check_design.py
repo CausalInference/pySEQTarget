@@ -8,9 +8,14 @@ def _undefined_terms(formula, data):
         formula = formula.split("~", 1)[-1]
         if formula.strip() in ("", "1"):
             return []
-    X = patsy.dmatrix(
-        formula, data, NA_action=patsy.NAAction(NA_types=[]), return_type="dataframe"
-    )
+    # Invalid values are what we are looking for, so don't warn about them
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        X = patsy.dmatrix(
+            formula,
+            data,
+            NA_action=patsy.NAAction(NA_types=[]),
+            return_type="dataframe",
+        )
     return [col for col in X.columns if not np.isfinite(X[col]).all()]
 
 
