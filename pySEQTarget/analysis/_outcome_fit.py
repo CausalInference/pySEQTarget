@@ -10,6 +10,7 @@ from pandas.api.types import is_numeric_dtype
 from ..helpers._check_design import _check_design
 from ..helpers._fix_categories import _cast_fixed_categories
 from ..helpers._spline import _compute_spline_knots, _cr_term
+from ..weighting._weight_stats import _weight_bounds
 
 
 def _apply_spline_formula(formula, indicator_squared, spline_knots):
@@ -92,10 +93,9 @@ def _outcome_fit(
     start_params=None,
 ):
     if weighted:
+        lower, upper = _weight_bounds(self)
         df = df.with_columns(
-            pl.col(weight_col).clip(
-                lower_bound=self.weight_min, upper_bound=self.weight_max
-            )
+            pl.col(weight_col).clip(lower_bound=lower, upper_bound=upper)
         )
 
     if self.method == "censoring":

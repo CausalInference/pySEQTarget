@@ -12,6 +12,7 @@ import numpy as np
 import polars as pl
 from scipy import stats
 
+from ..weighting._weight_stats import _weight_bounds
 from ._risk_estimates import _ci_label
 
 
@@ -125,8 +126,9 @@ def _eof_estimate(self):
     DT = _eof_frame(self)
     by = _eof_group_cols(self, DT)
 
+    lower, upper = _weight_bounds(self)
     measured = _eof_measure(self, DT).with_columns(
-        pl.col("weight").clip(lower_bound=self.weight_min, upper_bound=self.weight_max)
+        pl.col("weight").clip(lower_bound=lower, upper_bound=upper)
     )
 
     est = measured.group_by(by).agg(
