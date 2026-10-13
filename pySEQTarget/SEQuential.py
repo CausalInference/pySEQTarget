@@ -31,6 +31,16 @@ from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
 _DEFAULT_SEED = 0
 
 
+def _collect_models(self, kind):
+    """One model per replicate, main fit first; keyed by subgroup for subgroup analyses."""
+    if self.subgroup_colname is None:
+        return [models[kind] for models in self.outcome_model]
+    return {
+        val: [models[val][kind] for models in self.outcome_model if val in models]
+        for val in self._unique_subgroups
+    }
+
+
 class SEQuential:
     """
     Primary class initializer for SEQuential target trial emulation
@@ -558,9 +568,9 @@ class SEQuential:
             outcome_models = None
             compevent_models = None
         elif self.outcome_model is not None:
-            outcome_models = [model["outcome"] for model in self.outcome_model]
+            outcome_models = _collect_models(self, "outcome")
             if self.compevent_colname is not None:
-                compevent_models = [model["compevent"] for model in self.outcome_model]
+                compevent_models = _collect_models(self, "compevent")
             else:
                 compevent_models = None
         else:
