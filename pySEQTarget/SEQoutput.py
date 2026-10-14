@@ -1,7 +1,7 @@
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -25,8 +25,12 @@ class SEQoutput:
     :type numerator_models: List[ResultsWrapper] or None
     :param denominator_models: Denominator models, if applicable, from the weighting process
     :type denominator_models: List[ResultsWrapper] or None
-    :param compevent_models: Competing event models, if applicable
-    :type compevent_models: List[ResultsWrapper] or None
+    :param outcome_models: Outcome models, one per bootstrap replicate with the
+        main fit first; for subgroup analyses, a dict of such lists keyed by subgroup
+    :type outcome_models: List[ResultsWrapper], Dict[Any, List[ResultsWrapper]] or None
+    :param compevent_models: Competing event models, if applicable, in the same form
+        as ``outcome_models``
+    :type compevent_models: List[ResultsWrapper], Dict[Any, List[ResultsWrapper]] or None
     :param weight_statistics: Weight statistics once returned back to the expanded dataset
     :type weight_statistics: dict or None
     :param hazard: Hazard ratio if applicable
@@ -67,8 +71,10 @@ class SEQoutput:
     method: str = None
     numerator_models: List[ResultsWrapper] = None
     denominator_models: List[ResultsWrapper] = None
-    outcome_models: List[List[ResultsWrapper]] = None
-    compevent_models: List[List[ResultsWrapper]] = None
+    outcome_models: Union[List[ResultsWrapper], Dict[Any, List[ResultsWrapper]]] = None
+    compevent_models: Union[List[ResultsWrapper], Dict[Any, List[ResultsWrapper]]] = (
+        None
+    )
     weight_statistics: pl.DataFrame = None
     hazard: pl.DataFrame = None
     km_data: pl.DataFrame = None
@@ -82,7 +88,7 @@ class SEQoutput:
 
     def plot(self) -> None:
         """
-        Displays the Kaplan-Meier graph
+        Displays the survival, risk or incidence plot
         """
         if self.km_graph is None:
             raise ValueError(
@@ -96,9 +102,10 @@ class SEQoutput:
         type: Optional[
             Literal["numerator", "denominator", "outcome", "compevent"]
         ] = None,
-    ) -> List:
+    ) -> Union[List, Dict[Any, List]]:
         """
-        Returns a list of model summaries of either the numerator, denominator, outcome, or competing event models
+        Returns a list of model summaries of either the numerator, denominator, outcome, or competing event models.
+        For subgroup analyses, outcome and competing event summaries are a dict of lists keyed by subgroup.
 
         :param type: Indicator for which model list you would like returned
         :type type: str
@@ -121,14 +128,19 @@ class SEQoutput:
         if self.options is not None and self.options.offload:
             loader = Offloader(enabled=True, dir=self.options.offload_dir)
 
-        summaries = []
-        for model in models:
-            if model is None:
-                continue
-            if loader is not None:
-                model = loader.load_model(model)
-            summaries.append(model.summary())
-        return summaries
+        def summarise(group):
+            summaries = []
+            for model in group:
+                if model is None:
+                    continue
+                if loader is not None:
+                    model = loader.load_model(model)
+                summaries.append(model.summary())
+            return summaries
+
+        if isinstance(models, dict):
+            return {val: summarise(group) for val, group in models.items()}
+        return summarise(models)
 
     def retrieve_data(
         self,

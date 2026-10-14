@@ -28,7 +28,7 @@ pytestmark = [
 ]
 
 BAKED_PLAIN = r"cr\({var}, knots=\[[^]]*\], lower_bound=[-\d.]+, upper_bound=[-\d.]+"
-BAKED = BAKED_PLAIN + r', constraints="center"\)'
+BAKED = BAKED_PLAIN + r", constraints=\[\[[^]]*\]\]\)"
 
 
 def _model(**opts):
@@ -264,7 +264,7 @@ def test_weight_spline_fits_on_either_glm_backend(glm_package):
     # The basis is centred, which keeps it full rank alongside the model
     # intercept — glum's solver, unlike statsmodels' pinv, needs that
     s = _model(weight_preexpansion=False, weight_spline=True, glm_package=glm_package)
-    assert 'constraints="center"' in s.denominator
+    assert "constraints=[[" in s.denominator
     assert s.DT["weight"].to_numpy().min() > 0
 
 

@@ -6,7 +6,7 @@ def _build_md(self, img_path: str = None) -> str:
     Builds markdown content for SEQuential analysis results.
 
     :param self: SEQoutput instance
-    :param img_path: Path to saved KM graph image (if any)
+    :param img_path: Path to the saved survival, risk or incidence plot (if any)
     :return: Markdown string
     """
 
@@ -16,14 +16,22 @@ def _build_md(self, img_path: str = None) -> str:
         # SEQoutput.summary handles absent model lists (e.g. no numerator
         # models under weighted ITT) and loads offloaded path refs.
         summaries = self.summary(kind)
-        if not summaries:
-            return
-        lines.append(f"### {title}")
-        lines.append("")
-        lines.append("```")
-        lines.append(str(summaries[0]))
-        lines.append("```")
-        lines.append("")
+        if isinstance(summaries, dict):
+            groups = summaries.items()
+        else:
+            groups = [(None, summaries)]
+        for val, group in groups:
+            if not group:
+                continue
+            label = title
+            if val is not None:
+                label = f"{title} ({self.options.subgroup_colname} = {val})"
+            lines.append(f"### {label}")
+            lines.append("")
+            lines.append("```")
+            lines.append(str(group[0]))
+            lines.append("```")
+            lines.append("")
 
     lines.append(f"# SEQuential Analysis: {datetime.date.today()}: {self.method}")
     lines.append("")
@@ -83,9 +91,11 @@ def _build_md(self, img_path: str = None) -> str:
             lines.append("")
 
         if self.km_graph is not None and img_path is not None:
-            lines.append("#### Survival Curves")
+            # Model-based curves of the plotted quantity, as titled on the plot
+            label = f"Cumulative {self.options.plot_type.title()}"
+            lines.append(f"#### {label}")
             lines.append("")
-            lines.append(f"![Kaplan-Meier Survival Curves]({img_path})")
+            lines.append(f"![{label}]({img_path})")
             lines.append("")
 
     if self.diagnostic_tables:

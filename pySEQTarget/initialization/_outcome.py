@@ -14,7 +14,9 @@ def _outcome(self) -> str:
         if self.time_varying_cols
         else None
     )
-    fixed = "+".join(self.fixed_cols) if self.fixed_cols else None
+    # The subgroup column is constant within each subgroup's outcome model
+    fixed_cols = [c for c in self.fixed_cols if c != self.subgroup_colname]
+    fixed = "+".join(fixed_cols) if fixed_cols else None
     trial = (
         "+".join(["trial", f"trial{self.indicator_squared}"])
         if self.trial_include

@@ -9,11 +9,14 @@ def _term_columns(expression):
     except SyntaxError:
         return set(expression.replace("+", " ").replace("*", " ").split())
 
-    called = {
-        node.func
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
+    called = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            # The function, or the module it comes from, as in np.log(x)
+            func = node.func
+            while isinstance(func, ast.Attribute):
+                func = func.value
+            called.add(func)
     return {
         node.id
         for node in ast.walk(tree)

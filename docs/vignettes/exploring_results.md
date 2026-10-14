@@ -12,72 +12,40 @@ Let us now go over what the dump to md looks like and explore our output in furt
 
 ## Weighting
 
-We begin by exploring the weight models, this gives us general information about the numerator and denominator models, as well as weight statistics before applying any limits. If you recall, we imposed weight bounds at the 99th percentile. This means that in the outcome model our weights will be bound at [0.273721, 423.185]. Note that in real analysis, we would hope the weights are stabilized further. Using the generated data, specifically with excused analysis, often result in larger-than-intended weights.
+We begin by exploring the weight models, this gives us general information about the denominator model, as well as weight statistics before applying any limits. With pre-expansion weights and excused conditions the numerator is fixed at 1, so there is no numerator model and the weights are not stabilized; they have a long right tail, which is why we bound them at the 1st and 99th percentiles. This means that in the outcome model our weights will be bound at [0.999954, 19.8889].
 
-We should also note here that in excused-censoring analysis, our adherance models hold `switch` as the dependent variable. In all non-excused cases, this would normally be your treatment value.
-
-### Numerator Model
-
-```
-                          MNLogit Regression Results                          
-==============================================================================
-Dep. Variable:                 switch   No. Observations:                65375
-Model:                        MNLogit   Df Residuals:                    65366
-Method:                           MLE   Df Model:                            8
-Date:                Wed, 10 Dec 2025   Pseudo R-squ.:                0.008332
-Time:                        10:18:38   Log-Likelihood:                -13986.
-converged:                       True   LL-Null:                       -14103.
-Covariance Type:            nonrobust   LLR p-value:                 2.560e-46
-===============================================================================
-   switch=1       coef    std err          z      P>|z|      [0.025      0.975]
--------------------------------------------------------------------------------
-Intercept      -0.8797      0.692     -1.271      0.204      -2.236       0.477
-sex[T.1]       -0.0461      0.035     -1.325      0.185      -0.114       0.022
-N_bas           0.0026      0.003      0.741      0.459      -0.004       0.009
-L_bas           0.3368      0.032     10.553      0.000       0.274       0.399
-P_bas          -0.1864      0.073     -2.556      0.011      -0.329      -0.043
-followup       -0.0211      0.006     -3.822      0.000      -0.032      -0.010
-followup_sq     0.0001      0.000      0.637      0.524      -0.000       0.000
-trial          -0.0624      0.014     -4.430      0.000      -0.090      -0.035
-trial_sq        0.0004      0.000      2.309      0.021    5.78e-05       0.001
-===============================================================================
-```
+We should also note here that with pre-expansion weights the denominator model has the treatment as its dependent variable. With post-expansion weights (`weight_preexpansion=False`), excused-censoring models hold `switch` as the dependent variable instead.
 
 ### Denominator Model
 
 ```
-                          MNLogit Regression Results                          
+                           Logit Regression Results                           
 ==============================================================================
-Dep. Variable:                 switch   No. Observations:                65375
-Model:                        MNLogit   Df Residuals:                    65363
-Method:                           MLE   Df Model:                           11
-Date:                Wed, 10 Dec 2025   Pseudo R-squ.:                 0.01586
-Time:                        10:18:38   Log-Likelihood:                -13880.
-converged:                       True   LL-Null:                       -14103.
-Covariance Type:            nonrobust   LLR p-value:                 5.374e-89
-===============================================================================
-   switch=1       coef    std err          z      P>|z|      [0.025      0.975]
--------------------------------------------------------------------------------
-Intercept      -1.4384      0.715     -2.012      0.044      -2.840      -0.037
-sex[T.1]       -0.0447      0.035     -1.281      0.200      -0.113       0.024
-N              -0.0195      0.003     -5.655      0.000      -0.026      -0.013
-L               0.3719      0.062      6.025      0.000       0.251       0.493
-P               0.9362      0.139      6.723      0.000       0.663       1.209
-N_bas           0.0023      0.003      0.674      0.501      -0.004       0.009
-L_bas          -0.1703      0.092     -1.842      0.066      -0.351       0.011
-P_bas          -0.9966      0.139     -7.166      0.000      -1.269      -0.724
-followup        0.0906      0.022      4.164      0.000       0.048       0.133
-followup_sq    -0.0007      0.000     -3.678      0.000      -0.001      -0.000
-trial          -0.0695      0.014     -4.934      0.000      -0.097      -0.042
-trial_sq        0.0006      0.000      3.788      0.000       0.000       0.001
-===============================================================================
+Dep. Variable:                tx_init   No. Observations:                 6137
+Model:                          Logit   Df Residuals:                     6130
+Method:                           MLE   Df Model:                            6
+Date:                Tue, 13 Oct 2026   Pseudo R-squ.:               0.0006500
+Time:                        10:31:40   Log-Likelihood:                -3017.9
+converged:                       True   LL-Null:                       -3019.8
+Covariance Type:            nonrobust   LLR p-value:                    0.6867
+==============================================================================
+                 coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept     -2.2157      1.214     -1.824      0.068      -4.596       0.165
+sex            0.0331      0.065      0.511      0.609      -0.094       0.160
+N             -0.0105      0.006     -1.648      0.099      -0.023       0.002
+L             -0.0177      0.052     -0.343      0.732      -0.119       0.083
+P              0.0945      0.128      0.741      0.459      -0.156       0.345
+time           0.0147      0.024      0.609      0.542      -0.033       0.062
+time_sq    -1.602e-05      0.000     -0.066      0.947      -0.000       0.000
+==============================================================================
 ```
 
 ### Weighting Statistics
 
 |   weight_min |   weight_max |   weight_mean |   weight_std |   weight_p01 |   weight_p25 |   weight_p50 |   weight_p75 |   weight_p99 |
 |-------------:|-------------:|--------------:|-------------:|-------------:|-------------:|-------------:|-------------:|-------------:|
-|  3.11308e-08 |  9.08003e+30 |   1.97762e+26 |  3.39822e+28 |     0.260691 |     0.853367 |      1.02192 |      1.28444 |        30119 |
+|     0.999923 |      24934.2 |       2.05553 |      33.0393 |     0.999954 |     0.999995 |      1.00002 |      1.26351 |      19.8889 |
 
 ## Outcome
 
@@ -88,29 +56,26 @@ After weight information, we begin to gather information about the outcome model
 ```
                  Generalized Linear Model Regression Results                  
 ==============================================================================
-Dep. Variable:                outcome   No. Observations:               658971
-Model:                            GLM   Df Residuals:                   658961
-Model Family:                Binomial   Df Model:                            9
+Dep. Variable:                outcome   No. Observations:               670413
+Model:                            GLM   Df Residuals:                   670406
+Model Family:                Binomial   Df Model:                            6
 Link Function:                  Logit   Scale:                          1.0000
-Method:                          IRLS   Log-Likelihood:                -2844.7
-Date:                Wed, 10 Dec 2025   Deviance:                       5689.4
-Time:                        10:18:38   Pearson chi2:                 6.80e+05
-No. Iterations:                    11   Pseudo R-squ. (CS):          0.0001638
+Method:                          IRLS   Log-Likelihood:                -3096.8
+Date:                Tue, 13 Oct 2026   Deviance:                       6193.6
+Time:                        10:31:40   Pearson chi2:                 1.02e+06
+No. Iterations:                    13   Pseudo R-squ. (CS):          0.0002477
 Covariance Type:            nonrobust                                         
-====================================================================================
-                       coef    std err          z      P>|z|      [0.025      0.975]
-------------------------------------------------------------------------------------
-Intercept          -23.1102      2.697     -8.569      0.000     -28.396     -17.824
-tx_init_bas[T.1]    -0.2221      0.185     -1.203      0.229      -0.584       0.140
-sex[T.1]            -0.5588      0.113     -4.942      0.000      -0.780      -0.337
-followup             0.0060      0.015      0.416      0.678      -0.022       0.035
-followup_sq          0.0001      0.000      0.465      0.642      -0.000       0.001
-trial                0.3377      0.054      6.274      0.000       0.232       0.443
-trial_sq            -0.0022      0.001     -4.223      0.000      -0.003      -0.001
-N_bas               -0.0007      0.011     -0.066      0.947      -0.022       0.021
-L_bas               -0.3595      0.072     -4.962      0.000      -0.501      -0.217
-P_bas                1.6141      0.281      5.752      0.000       1.064       2.164
-====================================================================================
+=============================================================================================
+                                coef    std err          z      P>|z|      [0.025      0.975]
+---------------------------------------------------------------------------------------------
+Intercept                    -9.5140      0.371    -25.647      0.000     -10.241      -8.787
+tx_init_bas[T.1]             -0.0750      0.343     -0.219      0.827      -0.748       0.598
+followup                     -0.0560      0.024     -2.346      0.019      -0.103      -0.009
+tx_init_bas[T.1]:followup     0.0581      0.022      2.633      0.008       0.015       0.101
+followup_sq                   0.0002      0.000      0.677      0.498      -0.000       0.001
+trial                         0.1249      0.018      7.092      0.000       0.090       0.159
+trial_sq                     -0.0017      0.000     -4.600      0.000      -0.002      -0.001
+=============================================================================================
 ```
 
 ### Survival
@@ -125,21 +90,21 @@ survival_data = my_output.retrieve_data("km_data")
 
 #### Risk Differences
 
-|   A_x |   A_y |   Risk Difference |   RD 95% LCI |   RD 95% UCI |
-|------:|------:|------------------:|-------------:|-------------:|
-|     0 |     1 |        0.00859802 |    -0.169438 |     0.186634 |
-|     1 |     0 |       -0.00859802 |    -0.186634 |     0.169438 |
+|   Followup |   A_x |   A_y |   Risk Difference |   RD 95% LCI |   RD 95% UCI |     RD SE |
+|-----------:|------:|------:|------------------:|-------------:|-------------:|----------:|
+|         60 |     0 |     1 |        -0.0244359 |  -0.126522   |  -0.00410246 | 0.0270593 |
+|         60 |     1 |     0 |         0.0244359 |   0.00410246 |   0.126522   | 0.0270593 |
 
 #### Risk Ratios
 
-|   A_x |   A_y |   Risk Ratio |   RR 95% LCI |   RR 95% UCI |
-|------:|------:|-------------:|-------------:|-------------:|
-|     0 |     1 |     1.24069  |   0.0121904  |      126.272 |
-|     1 |     0 |     0.806005 |   0.00791939 |       82.032 |
+|   Followup |   A_x |   A_y |   Risk Ratio |   RR 95% LCI |   RR 95% UCI |   log(RR) SE |
+|-----------:|------:|------:|-------------:|-------------:|-------------:|-------------:|
+|         60 |     0 |     1 |     0.255543 |     0.114726 |     0.632205 |      0.48761 |
+|         60 |     1 |     0 |     3.91324  |     1.58177  |     8.71642  |      0.48761 |
 
-#### Survival Curves
+#### Cumulative Risk
 
-![Kaplan-Meier Survival Curves](SEQuential_results.png)
+![Cumulative Risk](SEQuential_results.png)
 
 ## Diagnostic Tables
 
@@ -147,42 +112,56 @@ After all of our primary results, we are met with a few diagnostic tables. These
 
 Because we have an excused-censoring analysis, we are also provided with information about switches from treatment as well as how many of these switches were excused.
 
-### Unique Outcomes
+### Unique Outcomes (distinct subjects who had the outcome)
 
 |   tx_init |   outcome |   len |
 |----------:|----------:|------:|
-|         0 |         0 |   249 |
+|         1 |         0 |   713 |
+|         0 |         1 |     5 |
 |         1 |         1 |     8 |
-|         0 |         1 |     4 |
-|         1 |         0 |   715 |
+|         0 |         0 |   252 |
 
-### Nonunique Outcomes
+### Nonunique Outcomes (total outcome events)
 
 |   tx_init |   outcome |    len |
 |----------:|----------:|-------:|
-|         0 |         1 |     73 |
-|         1 |         0 | 546644 |
-|         1 |         1 |    227 |
-|         0 |         0 | 117007 |
+|         1 |         0 | 553803 |
+|         0 |         0 | 121031 |
+|         0 |         1 |     70 |
+|         1 |         1 |    209 |
 
-### Unique Switches
+### Unique Followup (distinct subjects contributing follow-up)
+
+|   tx_init_bas |   len |
+|--------------:|------:|
+|             0 |   828 |
+|             1 |   913 |
+
+### Nonunique Followup (person-time intervals)
+
+|   tx_init_bas |    len |
+|--------------:|-------:|
+|             0 |  59827 |
+|             1 | 610586 |
+
+### Unique Switches (distinct subjects who switched)
 
 |   tx_init | isExcused   |   switch |   len |
 |----------:|:------------|---------:|------:|
-|         0 | True        |        1 |    30 |
-|         1 | False       |        1 |    47 |
-|         0 | False       |        1 |    91 |
-|         1 | True        |        1 |    32 |
-|         0 | False       |        0 |   132 |
-|         1 | False       |        0 |   644 |
+|         1 | False       |        0 |   646 |
+|         0 | True        |        1 |    29 |
+|         1 | True        |        1 |    33 |
+|         0 | False       |        1 |    94 |
+|         0 | False       |        0 |   134 |
+|         1 | False       |        1 |    42 |
 
-### Nonunique Switches
+### Nonunique Switches (total switch intervals)
 
 |   tx_init | isExcused   |   switch |    len |
 |----------:|:------------|---------:|-------:|
-|         0 | True        |        0 |  22056 |
-|         0 | False       |        1 |   3724 |
-|         1 | False       |        1 |   1256 |
-|         1 | False       |        0 | 527107 |
-|         1 | True        |        0 |  18508 |
-|         0 | False       |        0 |  91300 |
+|         0 | True        |        0 |  23012 |
+|         0 | False       |        1 |   3394 |
+|         1 | False       |        1 |   1306 |
+|         1 | False       |        0 | 533916 |
+|         0 | False       |        0 |  94695 |
+|         1 | True        |        0 |  18790 |

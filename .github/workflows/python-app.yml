@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-26]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
     - uses: actions/checkout@v7
@@ -27,6 +27,19 @@ jobs:
 
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
+
+    # tabmat and glum have no Python 3.15 wheels yet, so they build from source.
+    # lifelines caps pandas below 3, and pandas 2.x is broken on 3.15, so override
+    # the cap and stop uv run from re-syncing it back.
+    - name: Prepare Python 3.15 build
+      if: matrix.python-version == '3.15'
+      run: |
+        brew install libomp xsimd jemalloc
+        echo "CPPFLAGS=-I$(brew --prefix libomp)/include -I$(brew --prefix xsimd)/include -I$(brew --prefix jemalloc)/include" >> "$GITHUB_ENV"
+        echo "LDFLAGS=-L$(brew --prefix libomp)/lib -L$(brew --prefix jemalloc)/lib" >> "$GITHUB_ENV"
+        echo "pandas>=3" > "$RUNNER_TEMP/uv-overrides.txt"
+        echo "UV_OVERRIDE=$RUNNER_TEMP/uv-overrides.txt" >> "$GITHUB_ENV"
+        echo "UV_NO_SYNC=1" >> "$GITHUB_ENV"
 
     - name: Install dependencies
       run: |

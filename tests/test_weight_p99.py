@@ -28,8 +28,8 @@ def _coefs(s):
 
 
 def test_weight_p99_truncates_at_p01_p99_percentile_weights():
-    # weight_p99=True overrides weight_min/weight_max with the p01/p99 of the
-    # (untruncated) weights -- these are reported in weight_stats. So it must be
+    # weight_p99=True truncates at the p01/p99 of the (untruncated) weights --
+    # these are reported in weight_stats. So it must be
     # equivalent to passing those percentile values as explicit bounds, and must
     # differ from an untruncated weighted fit.
     p99 = _fit(weight_p99=True)
@@ -42,3 +42,26 @@ def test_weight_p99_truncates_at_p01_p99_percentile_weights():
 
     assert np.allclose(_coefs(p99), _coefs(explicit), atol=1e-8)
     assert not np.allclose(_coefs(p99), _coefs(untruncated), atol=1e-6)
+
+
+def test_weight_p99_leaves_the_supplied_bounds_alone():
+    # Each fit, main or replicate, truncates at its own percentiles, but the
+    # options keep what was supplied, as in SEQTaRget
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="censoring",
+        parameters=SEQopts(weighted=True, weight_p99=True, bootstrap_nboot=2, seed=1),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    assert (s.weight_min, s.weight_max) == (0.0, None)
+    options = s.collect().options
+    assert (options.weight_min, options.weight_max) == (0.0, None)

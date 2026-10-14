@@ -1,6 +1,16 @@
 import numpy as np
 
-from ._fix_categories import _fix_categories_for_predict
+from ._check_design import _check_design
+from ._fix_categories import (_cast_fixed_categories,
+                              _fix_categories_for_predict, _model_design_info)
+
+
+def _check_predictions(model, data, probs):
+    """If predictions are NaN because a model term is undefined, say which."""
+    if np.any(np.isnan(probs)):
+        design_info = _model_design_info(model)
+        if design_info is not None:
+            _check_design(design_info, data)
 
 
 def _safe_predict(model, data, clip_probs=True):
@@ -29,6 +39,7 @@ def _safe_predict(model, data, clip_probs=True):
 
     if clip_probs:
         probs = np.array(probs)
+        _check_predictions(model, data, probs)
         if np.any(np.isnan(probs)):
             raise ValueError(
                 "NaN values in predicted probabilities. This typically indicates "
@@ -42,29 +53,26 @@ def _safe_predict(model, data, clip_probs=True):
 
 
 def _prep_predict_frame(self, newdata):
-    """Convert a polars frame to pandas with fixed_cols cast to category.
+    """Convert a polars frame to pandas with non-numeric fixed_cols cast to category.
 
     Split out from _predict_model so callers predicting with several models on
     the same rows (e.g. numerator + denominator in _weight_predict) can pay
     the conversion once and share the frame.
     """
-    newdata = newdata.to_pandas()
-    for col in self.fixed_cols:
-        if col in newdata.columns:
-            newdata[col] = newdata[col].astype("category")
-    return newdata
+    return _cast_fixed_categories(self.fixed_cols, newdata.to_pandas())
 
 
 def _predict_model_pd(model, newdata):
     """Predict on an already-prepared pandas frame, with category fix retry."""
     try:
-        return np.array(model.predict(newdata))
+        probs = np.array(model.predict(newdata))
     except Exception as e:
-        if "mismatching levels" in str(e):
-            newdata = _fix_categories_for_predict(model, newdata)
-            return np.array(model.predict(newdata))
-        else:
+        if "mismatching levels" not in str(e):
             raise
+        newdata = _fix_categories_for_predict(model, newdata)
+        probs = np.array(model.predict(newdata))
+    _check_predictions(model, newdata, probs)
+    return probs
 
 
 def _predict_model(self, model, newdata):

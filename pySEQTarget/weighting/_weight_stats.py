@@ -16,8 +16,12 @@ def _weight_stats(self):
         ]
     )
 
-    if self.weight_p99:
-        self.weight_min = float(stats["weight_p01"][0])
-        self.weight_max = float(stats["weight_p99"][0])
-
     return stats
+
+
+def _weight_bounds(self):
+    """Truncation bounds for the current fit; with weight_p99, its 1st/99th percentiles."""
+    stats = getattr(self, "weight_stats", None)
+    if self.weight_p99 and stats is not None:
+        return float(stats["weight_p01"][0]), float(stats["weight_p99"][0])
+    return self.weight_min, self.weight_max

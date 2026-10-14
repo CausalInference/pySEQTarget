@@ -16,6 +16,7 @@ from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import (Offloader, _bake_model_formulas, _col_string,
                       _format_time, bootstrap_loop)
+from .helpers._fix_categories import _cast_fixed_categories
 from .initialization import (_cense_denominator, _cense_numerator,
                              _denominator, _numerator, _outcome)
 from .plot import _survival_plot
@@ -30,6 +31,16 @@ from .weighting import (_fit_denominator, _fit_LTFU, _fit_numerator,
 _DEFAULT_SEED = 0
 
 
+def _collect_models(self, kind):
+    """One model per replicate, main fit first; keyed by subgroup for subgroup analyses."""
+    if self.subgroup_colname is None:
+        return [models[kind] for models in self.outcome_model]
+    return {
+        val: [models[val][kind] for models in self.outcome_model if val in models]
+        for val in self._unique_subgroups
+    }
+
+
 class SEQuential:
     """
     Primary class initializer for SEQuential target trial emulation
@@ -41,7 +52,8 @@ class SEQuential:
     :param treatment_col: Column name specifying treatment per time_col
     :param outcome_col: Column name specifying outcome per time_col
     :param time_varying_cols: Time-varying column names as covariates (BMI, Age, etc.)
-    :param fixed_cols: Fixed column names as covariates (Sex, YOB, etc.)
+    :param fixed_cols: Fixed column names as covariates (Sex, YOB, etc.). Numeric
+        columns enter as continuous; supply categorical ones as string or Categorical
     :param method: Method for analysis ['ITT', 'dose-response', or 'censoring']
     :param parameters: Parameters to augment analysis, specified with ``pySEQTarget.SEQopts``
     :type parameters: Optional[SEQopts] or None
@@ -145,6 +157,7 @@ class SEQuential:
             self.cense_eligible_colname,
             self.compevent_colname,
             self.visit_colname,
+            self.subgroup_colname,
             *self.weight_eligible_colnames,
             *self.excused_colnames,
         ]
@@ -306,15 +319,18 @@ class SEQuential:
                 # models on `self` - so we keep the original polars frame for
                 # the downstream steps rather than paying a pl.from_pandas()
                 # round-trip per replicate.
-                WDT_pd = WDT_pl.to_pandas()
-                for col in self.fixed_cols:
-                    if col in WDT_pd.columns:
-                        WDT_pd[col] = WDT_pd[col].astype("category")
+                WDT_pd = _cast_fixed_categories(self.fixed_cols, WDT_pl.to_pandas())
 
                 _fit_LTFU(self, WDT_pd)
                 _fit_visit(self, WDT_pd)
-                _fit_numerator(self, WDT_pd)
-                _fit_denominator(self, WDT_pd)
+                # A subject's first row has no previous treatment (tx_lag is a fill)
+                tx_WDT_pd = (
+                    WDT_pd[WDT_pd.groupby(self.id_col).cumcount() > 0]
+                    if self.weight_preexpansion
+                    else WDT_pd
+                )
+                _fit_numerator(self, tx_WDT_pd)
+                _fit_denominator(self, tx_WDT_pd)
 
                 if self.offload:
                     _offload_weights(self, boot_idx)
@@ -355,7 +371,7 @@ class SEQuential:
                         key: (m.params.values, list(m.model.exog_names))
                         for key, m in sg.items()
                     }
-                    for val, sg in zip(self._unique_subgroups, models_list)
+                    for val, sg in models_list.items()
                 }
             return models_list
 
@@ -552,9 +568,9 @@ class SEQuential:
             outcome_models = None
             compevent_models = None
         elif self.outcome_model is not None:
-            outcome_models = [model["outcome"] for model in self.outcome_model]
+            outcome_models = _collect_models(self, "outcome")
             if self.compevent_colname is not None:
-                compevent_models = [model["compevent"] for model in self.outcome_model]
+                compevent_models = _collect_models(self, "compevent")
             else:
                 compevent_models = None
         else:

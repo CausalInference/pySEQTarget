@@ -1,7 +1,9 @@
+import numpy as np  # noqa: F401 - formulas are evaluated here, e.g. np.log(x)
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from ..error._check_separation import _check_separation
+from ..helpers._check_design import _check_design
 from ..helpers._glum_fit import _fit_glum
 
 
@@ -59,6 +61,8 @@ def _fit_pair(
             setattr(self, out, None)
             continue
         formula = f"{outcome}~{rhs}"
+        if getattr(self, "_current_boot_idx", None) is None:
+            _check_design(formula, WDT)
         if getattr(self, "glm_package", "statsmodels") == "glum":
             fitted = _fit_glum(formula, WDT)
         else:
@@ -114,6 +118,8 @@ def _fit_numerator(self, WDT):
         if len(DT_subset[predictor].unique()) < 2:
             fits.append(None)
             continue
+        if getattr(self, "_current_boot_idx", None) is None:
+            _check_design(formula, DT_subset)
         # Use logit for binary 0/1 censoring, mnlogit otherwise
         if is_binary and getattr(self, "glm_package", "statsmodels") == "glum":
             model_fit = _fit_glum(formula, DT_subset)
@@ -125,6 +131,8 @@ def _fit_numerator(self, WDT):
             model_fit = smf.mnlogit(formula, DT_subset).fit(
                 disp=0, method=self.weight_fit_method
             )
+            # Column order of mnlogit predictions, to look classes up by value
+            model_fit.seq_classes = sorted(DT_subset[predictor].unique().tolist())
         _check_separation(model_fit, label=f"numerator (level {level})")
         fits.append(model_fit)
 
@@ -155,6 +163,8 @@ def _fit_denominator(self, WDT):
         if len(DT_subset[predictor].unique()) < 2:
             fits.append(None)
             continue
+        if getattr(self, "_current_boot_idx", None) is None:
+            _check_design(formula, DT_subset)
         # Use logit for binary 0/1 censoring, mnlogit otherwise
         if is_binary and getattr(self, "glm_package", "statsmodels") == "glum":
             model_fit = _fit_glum(formula, DT_subset)
@@ -166,6 +176,8 @@ def _fit_denominator(self, WDT):
             model_fit = smf.mnlogit(formula, DT_subset).fit(
                 disp=0, method=self.weight_fit_method
             )
+            # Column order of mnlogit predictions, to look classes up by value
+            model_fit.seq_classes = sorted(DT_subset[predictor].unique().tolist())
         _check_separation(model_fit, label=f"denominator (level {level})")
         fits.append(model_fit)
 

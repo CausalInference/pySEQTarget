@@ -1,7 +1,7 @@
 # More Advanced Analysis
 In getting started, we covered some of the basics for getting up and running on a simple analysis, but there are many options stored within `SEQuential`, or more aptly, many more parameters to play with in {py:class}`~pySEQTarget.SEQopts`. Let's cover a more in-depth analysis.
 
-In this case, let's go over a censoring analysis with excused conditions and stabilized weighting, limiting weights to the 99th percentile, and adjusting for losses-to-followup. Futhermore, we are interested in bootstrapping our results to get a risk estimate with confidence bounds and for ease of computation, we are going to randomly downsample 30% of trials which did not initiate treatment. Because we are downsampling, we are additionally going to turn off the lag condition for our adherance weights.
+In this case, let's go over a censoring analysis with excused conditions and inverse probability weighting, limiting weights to the 99th percentile, and adjusting for losses-to-followup. Futhermore, we are interested in bootstrapping our results to get a risk estimate with confidence bounds and for ease of computation, we are going to randomly downsample 30% of trials which did not initiate treatment.
 
 If you are coming from the R version, many arguments have been streamlined or inferred - take R's `bootstrap`, and `bootstrap.nboot` - these have been merged such that any `bootstrap_nboot` over 0 automatically starts the bootstrap initiation.
 
@@ -16,14 +16,15 @@ from pySEQTarget.data import load_data
 data = load_data("SEQdata_LTFU")
 my_options = SEQopts(
     bootstrap_nboot = 20,       # 20 bootstrap iterations (for demonstration only — use 500+ in practice)
+    bootstrap_CI_method = "percentile",  # percentile intervals stay within [0, 1]
     cense_colname = "LTFU",      # control for losses-to-followup as a censor
     excused = True,             # allow excused treatment swapping
     excused_colnames = ["excusedZero", "excusedOne"],
     km_curves = True,           # run survival estimates
+    plot_type = "risk",         # plot cumulative risk rather than survival
     selection_random = True,    #  randomly sample treatment non-initiators
     selection_sample = 0.30,     # sample 30% of treatment non-initiators
     weighted = True,            # enables the weighting
-    weight_lag_condition=False, # turn off lag condition when weighting for adherance
     weight_p99 = True,          # bounds weights by the 1st and 99th percentile
     weight_preexpansion = True  # weights are predicted using pre-expansion data
 )

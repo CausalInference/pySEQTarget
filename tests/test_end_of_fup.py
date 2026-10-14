@@ -435,3 +435,27 @@ def test_end_of_followup_requires_eof_mode_and_fit():
     s.expand()
     with pytest.raises(ValueError, match="fit"):
         s.end_of_followup()
+
+
+def test_trial_periods_that_cannot_reach_the_window_are_not_eligible():
+    k, w = 12, 3
+    s = _eof_run(end_of_fup=True, end_of_fup_time=k, end_of_fup_window=w)
+    starts = s.DT.group_by(["ID", "trial", "tx_init_bas"]).agg(
+        (pl.col("period") - pl.col("followup")).min().alias("start")
+    )
+    reachable = (
+        starts.filter(pl.col("start") + k - w <= s.DT["period"].max())
+        .group_by("tx_init_bas")
+        .len()
+        .sort("tx_init_bas")
+    )
+    eof = s.eof_data.sort("A")
+    assert eof["Trial-periods (Eligible)"].to_list() == reachable["len"].to_list()
+    assert reachable["len"].sum() < starts.height
+    # Analysed, censored and never measured still partition the eligible total
+    parts = (
+        eof["Trial-periods (Analysed)"]
+        + eof["Trial-periods (Censored)"]
+        + eof["Trial-periods (No measurement)"]
+    )
+    assert (parts == eof["Trial-periods (Eligible)"]).all()

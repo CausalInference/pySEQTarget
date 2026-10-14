@@ -1,26 +1,34 @@
 import re
 
+import numpy as np  # noqa: F401 - formulas are evaluated here, e.g. np.log(x)
 import pandas as pd
 import polars as pl
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pandas.api.types import is_numeric_dtype
 
+from ..helpers._check_design import _check_design
+from ..helpers._fix_categories import _cast_fixed_categories
 from ..helpers._spline import _compute_spline_knots, _cr_term
+from ..weighting._weight_stats import _weight_bounds
 
 
 def _apply_spline_formula(formula, indicator_squared, spline_knots):
     inner_knots, lower, upper = spline_knots
     spline = _cr_term("followup", inner_knots, lower, upper)
 
-    formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{spline}", formula)
-    formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{spline}*\1", formula)
+    # Mark interactions first, so dropping the bare followup terms below
+    # cannot reach into the spline, which contains "followup" itself
+    mark = "_SPLINE_"
+    formula = re.sub(r"(\w+)\s*\*\s*followup\b", rf"\1*{mark}", formula)
+    formula = re.sub(r"\bfollowup\s*\*\s*(\w+)", rf"{mark}*\1", formula)
     formula = re.sub(rf"\bfollowup{re.escape(indicator_squared)}\b", "", formula)
     formula = re.sub(r"\bfollowup\b", "", formula)
 
     formula = re.sub(r"\s+", " ", formula)
     formula = re.sub(r"\+\s*\+", "+", formula)
     formula = re.sub(r"^\s*\+\s*|\s*\+\s*$", "", formula).strip()
+    formula = formula.replace(mark, spline)
 
     if formula:
         return f"{formula} + {spline}"
@@ -54,10 +62,7 @@ def _cast_categories(self, df_pd):
         if squared_col in df_pd.columns:
             df_pd[squared_col] = df_pd[squared_col].astype("category")
 
-    if self.fixed_cols:
-        for col in self.fixed_cols:
-            if col in df_pd.columns:
-                df_pd[col] = df_pd[col].astype("category")
+    _cast_fixed_categories(self.fixed_cols, df_pd)
 
     # Stable factor encoding for categorical time-varying covariates: fix the
     # level set from the full expanded data (captured on the non-bootstrap
@@ -88,10 +93,9 @@ def _outcome_fit(
     start_params=None,
 ):
     if weighted:
+        lower, upper = _weight_bounds(self)
         df = df.with_columns(
-            pl.col(weight_col).clip(
-                lower_bound=self.weight_min, upper_bound=self.weight_max
-            )
+            pl.col(weight_col).clip(lower_bound=lower, upper_bound=upper)
         )
 
     if self.method == "censoring":
@@ -108,6 +112,8 @@ def _outcome_fit(
             formula, self.indicator_squared, self._followup_spline_knots
         )
 
+    if getattr(self, "_current_boot_idx", None) is None:
+        _check_design(formula, df_pd)
     full_formula = f"{outcome} ~ {formula}"
     var_weights = df_pd[weight_col] if weighted else None
 

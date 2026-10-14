@@ -69,3 +69,59 @@ def test_to_md_with_offloaded_models(tmp_path):
     assert "Numerator Model" in content
     assert "Denominator Model" in content
     assert "Outcome Model" in content
+
+
+def test_subgroup_models_are_collected_and_reported_by_subgroup(tmp_path):
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(subgroup_colname="sex", bootstrap_nboot=2, seed=42),
+    )
+    s.expand()
+    s.bootstrap()
+    s.fit()
+    out = s.collect()
+
+    # Per subgroup: the main fit, then one model per replicate
+    assert set(out.outcome_models) == {0, 1}
+    assert all(len(models) == 3 for models in out.outcome_models.values())
+    assert set(out.summary("outcome")) == {0, 1}
+
+    md_file = tmp_path / "report.md"
+    out.to_md(str(md_file))
+    content = md_file.read_text()
+    assert "Outcome Model (sex = 0)" in content
+    assert "Outcome Model (sex = 1)" in content
+
+
+def test_report_labels_the_plot_by_what_it_shows(tmp_path):
+    s = SEQuential(
+        load_data("SEQdata"),
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(km_curves=True, plot_type="risk", seed=42),
+    )
+    s.expand()
+    s.fit()
+    s.survival()
+    s.plot()
+    md_file = tmp_path / "report.md"
+    s.collect().to_md(str(md_file))
+    content = md_file.read_text()
+    # Model-based curves, so no Kaplan-Meier label
+    assert "#### Cumulative Risk" in content
+    assert "![Cumulative Risk](report.png)" in content
+    assert "Kaplan-Meier" not in content
