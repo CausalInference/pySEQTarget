@@ -102,6 +102,10 @@ def _fit_numerator(self, WDT):
         return
     if self.method == "ITT":
         return
+    if not self.weight_stabilized:
+        # Unstabilized weights: no numerator models, numerator fixed at 1
+        self.numerator_model = [None] * len(self.treatment_level)
+        return
     predictor = "switch" if self.excused else self.treatment_col
     tx_lag_col = (
         f"{self.treatment_col}{self.indicator_baseline}" if self.excused else "tx_lag"

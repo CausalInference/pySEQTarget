@@ -1,5 +1,6 @@
 import datetime
 import time
+import warnings
 from collections import Counter
 from dataclasses import asdict
 from typing import List, Literal, Optional
@@ -111,8 +112,25 @@ class SEQuential:
         if self.covariates is None:
             self.covariates = _outcome(self)
 
+        if not self.weight_stabilized and (not self.weighted or self.method == "ITT"):
+            warnings.warn(
+                "'weight_stabilized=False' only affects the treatment weights of a "
+                "weighted, non-ITT analysis and has no effect here",
+                UserWarning,
+                stacklevel=2,
+            )
+
         if self.weighted:
-            if self.numerator is None:
+            if not self.weight_stabilized and self.method != "ITT":
+                # No numerator model is fit; "1" is for display only
+                if self.numerator is not None:
+                    warnings.warn(
+                        "'numerator' is ignored when weight_stabilized=False",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                self.numerator = "1"
+            elif self.numerator is None:
                 self.numerator = _numerator(self)
 
             if self.denominator is None:

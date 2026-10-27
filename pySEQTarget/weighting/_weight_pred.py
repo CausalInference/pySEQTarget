@@ -115,7 +115,7 @@ def _weight_predict(self, WDT):
                     .alias("denominator")
                 )
 
-            if self.weight_preexpansion:
+            if self.weight_preexpansion or not self.weight_stabilized:
                 WDT = WDT.with_columns(pl.lit(1.0).alias("numerator"))
             else:
                 for i, level in enumerate(self.treatment_level):

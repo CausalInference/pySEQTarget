@@ -10,6 +10,7 @@ from pySEQTarget.weighting._weight_fit import (_fit_denominator,
 def _mock_self(**overrides):
     attrs = {
         "weight_preexpansion": False,
+        "weight_stabilized": True,
         "excused": False,
         "method": "censoring",
         "treatment_col": "tx",
