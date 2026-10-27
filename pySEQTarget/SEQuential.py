@@ -12,7 +12,7 @@ import polars as pl
 from .analysis import (_calculate_hazard, _calculate_survival, _clamp,
                        _create_endoffup, _eof_counts, _eof_estimate,
                        _eof_frame, _eof_summary, _outcome_fit, _pred_risk,
-                       _risk_estimates, _subgroup_fit)
+                       _risk_estimates, _slim_model, _subgroup_fit)
 from .error import _data_checker, _param_checker
 from .expansion import _binder, _diagnostics, _dynamic, _random_selection
 from .helpers import (Offloader, _bake_model_formulas, _col_string,
@@ -383,7 +383,11 @@ class SEQuential:
 
         if self.subgroup_colname is not None:
             models_list = _subgroup_fit(self, start_params=start)
-            if not is_boot:
+            if is_boot:
+                for sg in models_list.values():
+                    for m in sg.values():
+                        _slim_model(m)
+            else:
                 self._outcome_start_params = {
                     val: {
                         key: (m.params.values, list(m.model.exog_names))
@@ -418,7 +422,12 @@ class SEQuential:
                 start_params=start_compevent,
             )
 
-        if not is_boot:
+        if is_boot:
+            # Replicate models are kept until the end of the run; drop their
+            # per-row data so memory does not grow with bootstrap_nboot
+            for m in models.values():
+                _slim_model(m)
+        else:
             self._outcome_start_params = {
                 k: (m.params.values, list(m.model.exog_names))
                 for k, m in models.items()

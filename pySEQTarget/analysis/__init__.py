@@ -3,6 +3,7 @@ from ._endoffup import (_create_endoffup, _eof_counts, _eof_estimate,
 from ._hazard import _calculate_hazard
 from ._outcome_fit import _outcome_fit
 from ._risk_estimates import _risk_estimates
+from ._slim_model import _slim_model
 from ._subgroup_fit import _subgroup_fit
 from ._survival_pred import (_calculate_survival, _clamp,
                              _get_outcome_predictions, _pred_risk)
@@ -16,6 +17,7 @@ __all__ = [
     "_eof_summary",
     "_outcome_fit",
     "_risk_estimates",
+    "_slim_model",
     "_subgroup_fit",
     "_calculate_survival",
     "_clamp",
