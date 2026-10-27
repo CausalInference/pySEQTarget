@@ -81,8 +81,12 @@ class SEQopts:
         followup is always included. Defaults to ``None`` (report at the maximum followup only).
     :param seed: RNG seed
     :param selection_first_trial: Boolean to only use first trial for analysis (similar to non-expanded)
-    :param selection_sample: Subsampling proportion of ID-trials which did not initiate a treatment
-    :param selection_random: Boolean to randomly downsample ID-trials which did not initiate a treatment
+    :param selection_sample: Proportion of the ID-trials starting on the first level of
+        ``treatment_level`` to keep when ``selection_random=True``, in (0, 1], default ``0.8``
+    :param selection_random: Boolean to randomly subsample the ID-trials starting on the first
+        level of ``treatment_level`` (e.g. the untreated), keeping a proportion ``selection_sample``
+        of them, sampled without replacement, and all other ID-trials. The sampled ID-trials are
+        not reweighted
     :param subgroup_colname: Column name for subgroups to share the same weighting but different outcome model fits
     :param treatment_level: List of eligible treatment levels within treatment_col, default ``[0, 1]``
     :param trial_include: Boolean to force trial values into model covariates
