@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQTarget"
-version = "0.14.3"
+version = "0.14.4"
 description = "Sequential Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -63,7 +63,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/CausalInference/pySEQTarget"
+Homepage = "https://pyseqtarget.readthedocs.io"
+Documentation = "https://pyseqtarget.readthedocs.io"
 Repository = "https://github.com/CausalInference/pySEQTarget"
 "Bug Tracker" = "https://github.com/CausalInference/pySEQTarget/issues"
 "Ryan O'Dea (ORCID)" = "https://orcid.org/0009-0000-0103-9546"

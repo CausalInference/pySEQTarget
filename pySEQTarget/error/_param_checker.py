@@ -134,6 +134,7 @@ def _param_checker(self):
     if (
         self.weighted
         and self.method != "ITT"
+        and self.weight_stabilized
         and self.numerator is not None
         and self.denominator is not None
     ):
