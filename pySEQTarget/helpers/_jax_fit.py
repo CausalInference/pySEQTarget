@@ -159,6 +159,14 @@ class _JaxFit:
         probs = np.asarray(self._jax.predict(X_arr), dtype=np.float64)
         return probs[:, 1] if self._n_classes == 2 else probs
 
+    def remove_data(self):
+        """Drop the per-row design matrix and weights, as statsmodels' remove_data."""
+        # Covariance is only implemented for binary fits
+        if self._n_classes == 2:
+            self.cov_params()
+        self._X_design = None
+        self._sample_weight = None
+
     def cov_params(self):
         if self._n_classes != 2:
             raise NotImplementedError(

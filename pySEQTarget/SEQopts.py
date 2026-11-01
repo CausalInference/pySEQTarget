@@ -81,8 +81,12 @@ class SEQopts:
         followup is always included. Defaults to ``None`` (report at the maximum followup only).
     :param seed: RNG seed
     :param selection_first_trial: Boolean to only use first trial for analysis (similar to non-expanded)
-    :param selection_sample: Subsampling proportion of ID-trials which did not initiate a treatment
-    :param selection_random: Boolean to randomly downsample ID-trials which did not initiate a treatment
+    :param selection_sample: Proportion of the ID-trials starting on the first level of
+        ``treatment_level`` to keep when ``selection_random=True``, in (0, 1], default ``0.8``
+    :param selection_random: Boolean to randomly subsample the ID-trials starting on the first
+        level of ``treatment_level`` (e.g. the untreated), keeping a proportion ``selection_sample``
+        of them, sampled without replacement, and all other ID-trials. The sampled ID-trials are
+        not reweighted
     :param subgroup_colname: Column name for subgroups to share the same weighting but different outcome model fits
     :param treatment_level: List of eligible treatment levels within treatment_col, default ``[0, 1]``
     :param trial_include: Boolean to force trial values into model covariates
@@ -95,6 +99,10 @@ class SEQopts:
     :param weight_lag_condition: Boolean to fit weights based on their treatment lag
     :param weight_p99: Boolean to force weight min and max to be 1st and 99th percentile respectively
     :param weight_preexpansion: Boolean to fit weights on preexpanded data
+    :param weight_stabilized: Boolean to use stabilized IP weights, default ``True``.
+        ``False`` fits no numerator models, so the treatment weights are cumulative
+        products of ``1 / denominator`` and any ``numerator`` is ignored; LTFU and
+        visit weights keep their numerators
     :param weight_spline: Boolean to model time in the default weight models with a
         centred natural cubic spline (patsy's ``cr()``) instead of a quadratic,
         making the baseline hazard a flexible function of time, default ``False``.
@@ -164,6 +172,7 @@ class SEQopts:
     weight_lag_condition: bool = True
     weight_p99: bool = False
     weight_preexpansion: bool = True
+    weight_stabilized: bool = True
     weight_spline: bool = False
     weight_spline_df: int = 4
     verbose: bool = False
@@ -187,6 +196,7 @@ class SEQopts:
             "weight_lag_condition",
             "weight_p99",
             "weight_preexpansion",
+            "weight_stabilized",
             "weight_spline",
             "weighted",
         ]

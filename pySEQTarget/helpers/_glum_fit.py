@@ -128,6 +128,12 @@ class _GlumFit:
             X_arr = np.asarray(data)[:, 1:]
         return self._glum.predict(X_arr)
 
+    def remove_data(self):
+        """Drop the per-row design matrix and weights, as statsmodels' remove_data."""
+        self.cov_params()
+        self._X_design = None
+        self._sample_weight = None
+
     def cov_params(self):
         if self._cov_cached is not None:
             return self._cov_cached
