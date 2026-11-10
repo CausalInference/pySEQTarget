@@ -169,9 +169,7 @@ def _calculate_risk(self, data, val=None):
     followup_range = list(range(0, self.followup_max + 1))
 
     SDT = (
-        data.with_columns(
-            [pl.concat_str([pl.col(self.id_col), pl.col("trial")]).alias("TID")]
-        )
+        data.with_columns([pl.struct([self.id_col, "trial"]).alias("TID")])
         .group_by("TID")
         .first()
         .drop(["followup", f"followup{self.indicator_squared}"])
@@ -370,6 +368,17 @@ def _calculate_risk(self, data, val=None):
                         )
                         .join(TxDT.select(["followup", "inc"]), on="followup")
                     )
+                    if self.bootstrap_CI_method == "se":
+                        inc_risk = inc_risk.with_columns(
+                            [
+                                (pl.col("inc") - z * pl.col("inc_SE")).alias(
+                                    "inc_LCI"
+                                ),
+                                (pl.col("inc") + z * pl.col("inc_SE")).alias(
+                                    "inc_UCI"
+                                ),
+                            ]
+                        )
                     risk = risk.join(inc_risk, on="followup")
                     final_cols = [
                         "followup",
@@ -517,9 +526,15 @@ def _calculate_risk(self, data, val=None):
 
 
 def _calculate_survival(self, risk_data):
+    if (risk_data["estimate"] == "survival").any():
+        return risk_data.clear()
     if self.bootstrap_nboot > 0:
         surv = risk_data.with_columns(
-            [(1 - pl.col(col)).alias(col) for col in ["pred", "LCI", "UCI"]]
+            [
+                (1 - pl.col("pred")).alias("pred"),
+                (1 - pl.col("UCI")).alias("LCI"),
+                (1 - pl.col("LCI")).alias("UCI"),
+            ]
         ).with_columns(pl.lit("survival").alias("estimate"))
     else:
         surv = risk_data.with_columns(
