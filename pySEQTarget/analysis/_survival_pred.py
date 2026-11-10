@@ -371,12 +371,8 @@ def _calculate_risk(self, data, val=None):
                     if self.bootstrap_CI_method == "se":
                         inc_risk = inc_risk.with_columns(
                             [
-                                (pl.col("inc") - z * pl.col("inc_SE")).alias(
-                                    "inc_LCI"
-                                ),
-                                (pl.col("inc") + z * pl.col("inc_SE")).alias(
-                                    "inc_UCI"
-                                ),
+                                (pl.col("inc") - z * pl.col("inc_SE")).alias("inc_LCI"),
+                                (pl.col("inc") + z * pl.col("inc_SE")).alias("inc_UCI"),
                             ]
                         )
                     risk = risk.join(inc_risk, on="followup")
