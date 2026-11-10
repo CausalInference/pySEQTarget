@@ -6,6 +6,8 @@ import numpy as np
 import polars as pl
 from lifelines import CoxPHFitter
 
+from ..expansion._selection import _selection_weight
+from ..helpers._bootstrap import _rescale_boot
 from ..helpers._predict_model import _safe_predict
 from ._outcome_fit import _cast_categories
 from ._subgroup_fit import _warn_missing_subgroup
@@ -59,6 +61,9 @@ def _calculate_hazard_single(self, data, val=None):
 
         if len(boot_log_hrs) == 0:
             return _create_hazard_output(np.exp(full_log_hr), None, None, val, self)
+        boot_log_hrs = _rescale_boot(
+            np.asarray(boot_log_hrs), full_log_hr, self.bootstrap_sample
+        )
 
         if self.bootstrap_CI_method == "se":
             from scipy.stats import norm
@@ -203,6 +208,12 @@ def _hazard_handler(self, data, val, boot_idx, rng):
     ]
     if self.compevent_colname:
         exclude_cols.append(self.compevent_colname)
+    # Weight ID-trials kept by selection_random by the inverse of their
+    # selection probability, taken from the observed baseline treatment before
+    # each ID-trial is copied into every arm below
+    sel_w = _selection_weight(self)
+    if sel_w is not None:
+        data = data.with_columns(sel_w.alias("_sel_w"))
     keep_cols = [col for col in data.columns if col not in exclude_cols]
 
     trials = (
@@ -283,6 +294,7 @@ def _hazard_handler(self, data, val, boot_idx, rng):
 
     sim_data_pd = sim_data.to_pandas()
     tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
+    weights_col = "_sel_w" if sel_w is not None else None
 
     try:
         # COXPHFITTER CURRENTLY HAS DEPRECATED datetime.datetime.utcnow()
@@ -290,21 +302,31 @@ def _hazard_handler(self, data, val, boot_idx, rng):
         if ce_model is not None:
             cox_data = sim_data_pd[sim_data_pd["event"].isin([0, 1])].copy()
             cox_data["event_binary"] = (cox_data["event"] == 1).astype(int)
-            return _cox_log_hr(self, cox_data, "followup", "event_binary", tx_bas)
-        return _cox_log_hr(self, sim_data_pd, "followup", "event", tx_bas)
+            return _cox_log_hr(
+                self, cox_data, "followup", "event_binary", tx_bas, weights_col
+            )
+        return _cox_log_hr(self, sim_data_pd, "followup", "event", tx_bas, weights_col)
     except Exception as e:
         print(f"Cox model fitting failed: {e}")
         return None
 
 
-def _cox_log_hr(self, data_pd, duration_col, event_col, covariate_col):
+def _cox_log_hr(
+    self, data_pd, duration_col, event_col, covariate_col, weights_col=None
+):
     """
     Fit a univariate Cox model (single covariate = baseline treatment) and
     return the log hazard ratio, dispatching on self.cox_package. scikit-survival
     uses Efron tie handling to match lifelines, which matters here because
     integer follow-up produces many tied event times.
+
+    scikit-survival's Cox model takes no case weights, so a weighted fit
+    (``weights_col``, from selection_random) always uses lifelines.
     """
-    if getattr(self, "cox_package", "lifelines") == "scikit-survival":
+    if (
+        getattr(self, "cox_package", "lifelines") == "scikit-survival"
+        and weights_col is None
+    ):
         from sksurv.linear_model import CoxPHSurvivalAnalysis
 
         y = np.empty(len(data_pd), dtype=[("event", bool), ("time", "float64")])
@@ -316,12 +338,17 @@ def _cox_log_hr(self, data_pd, duration_col, event_col, covariate_col):
         return float(cox.coef_[0])
 
     cph = CoxPHFitter()
-    cph.fit(
-        data_pd,
-        duration_col=duration_col,
-        event_col=event_col,
-        formula=f"`{covariate_col}`",
-    )
+    with warnings.catch_warnings():
+        # lifelines suggests robust=True for non-integer weights; only the point
+        # estimate is used here, the CI comes from the bootstrap
+        warnings.filterwarnings("ignore", message=".*not integers.*")
+        cph.fit(
+            data_pd,
+            duration_col=duration_col,
+            event_col=event_col,
+            weights_col=weights_col,
+            formula=f"`{covariate_col}`",
+        )
     return cph.params_.values[0]
 
 

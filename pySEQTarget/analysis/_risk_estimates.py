@@ -3,6 +3,8 @@ import math
 import polars as pl
 from scipy import stats
 
+from ..helpers._bootstrap import _rescale_boot
+
 
 def _ci_label(bootstrap_CI):
     """Format the CI level as a column-name fragment, e.g. 0.95 -> '95%'."""
@@ -188,31 +190,35 @@ def _risk_estimates(self):
                         risk_x_val / risk_y_val if risk_y_val != 0 else float("inf")
                     )
 
-                    # Filter degenerate RR bootstrap values (risk_y == 0 or negative)
-                    valid_rr = paired.filter(
-                        (pl.col("risk_y") > 0) & (pl.col("risk_x") >= 0)
-                    ).with_columns((pl.col("risk_x") / pl.col("risk_y")).alias("RR"))
+                    # Rescale to the full sample size (m-out-of-n bootstrap):
+                    # the RD on its own scale, the RR on the log scale. Drop
+                    # degenerate RR bootstrap values (non-positive or infinite)
+                    rd_i = _rescale_boot(paired["RD"], rd_point, self.bootstrap_sample)
+                    rr_i = paired["risk_x"] / paired["risk_y"]
+                    log_rr_i = rr_i.filter(rr_i.is_finite() & (rr_i > 0)).log()
+                    if 0 < rr_point < float("inf"):
+                        log_rr_i = _rescale_boot(
+                            log_rr_i, math.log(rr_point), self.bootstrap_sample
+                        )
 
-                    n_valid_rr = len(valid_rr)
+                    n_valid_rr = len(log_rr_i)
 
                     # Bootstrap SEs, retained regardless of CI method: the risk
                     # difference SE is on the natural scale, the risk ratio SE
                     # on the log scale (the scale ratio measures are pooled on
                     # for inverse-variance meta-analysis: combine the log Risk
                     # Ratio with log(RR) SE, then exponentiate).
-                    rd_se = float(paired["RD"].std())
+                    rd_se = float(rd_i.std())
                     log_rr_se = (
-                        float(valid_rr["RR"].log().std())
-                        if n_valid_rr >= 2
-                        else float("nan")
+                        float(log_rr_i.std()) if n_valid_rr >= 2 else float("nan")
                     )
 
                     if self.bootstrap_CI_method == "percentile":
-                        rd_lci = float(paired["RD"].quantile(alpha / 2))
-                        rd_uci = float(paired["RD"].quantile(1 - alpha / 2))
+                        rd_lci = float(rd_i.quantile(alpha / 2))
+                        rd_uci = float(rd_i.quantile(1 - alpha / 2))
                         if n_valid_rr >= 2:
-                            rr_lci = float(valid_rr["RR"].quantile(alpha / 2))
-                            rr_uci = float(valid_rr["RR"].quantile(1 - alpha / 2))
+                            rr_lci = math.exp(log_rr_i.quantile(alpha / 2))
+                            rr_uci = math.exp(log_rr_i.quantile(1 - alpha / 2))
                         else:
                             rr_lci = float("nan")
                             rr_uci = float("nan")

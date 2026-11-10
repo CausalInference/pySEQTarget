@@ -1,4 +1,5 @@
 import copy
+import math
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -25,6 +26,23 @@ _MAIN_FIT_ATTRS = (
     "visit_denominator_model",
     "weight_stats",
 )
+
+
+def _rescale_boot(draws, estimate, bootstrap_sample):
+    """Rescale bootstrap draws to the full sample size.
+
+    Each resample draws ``bootstrap_sample * n`` of the ``n`` subjects (an
+    m-out-of-n bootstrap), so the spread of the draws reflects a sample of size
+    ``m``, not ``n``: for a root-n consistent estimator their standard deviation
+    is about ``1 / sqrt(bootstrap_sample)`` times too large. Shrinking each draw
+    towards the full-data estimate by ``sqrt(bootstrap_sample)`` corrects this
+    for both the standard error and the percentile interval, and keeps draws of
+    a bounded quantity (a risk) within its bounds. Works on numpy arrays and
+    polars expressions alike; no-op when ``bootstrap_sample = 1``.
+    """
+    if bootstrap_sample >= 1:
+        return draws
+    return estimate + math.sqrt(bootstrap_sample) * (draws - estimate)
 
 
 def _prepare_boot_data(self, data, boot_id):

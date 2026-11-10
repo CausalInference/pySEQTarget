@@ -10,7 +10,11 @@ class SEQopts:
     Parameter builder for ``pySEQTarget.SEQuential`` analysis
 
     :param bootstrap_nboot: Number of bootstraps to perform
-    :param bootstrap_sample: Subsampling proportion of ID-Trials gathered for each bootstrapping iteration
+    :param bootstrap_sample: Proportion of subjects drawn (with replacement) in each bootstrap
+        resample, in (0, 1], default ``0.8``. Values below ``1`` give an m-out-of-n bootstrap, which
+        is faster on large data; the bootstrap estimates are rescaled by ``sqrt(bootstrap_sample)``
+        around the full-data estimate (ratios on the log scale) so that standard errors and
+        confidence intervals refer to the full sample size
     :param bootstrap_CI: If bootstrapped, confidence interval level
     :param bootstrap_CI_method: If bootstrapped, confidence interval method ['SE' or 'percentile']
     :param cense_colname: Column name for censoring effect (LTFU, etc.)
@@ -85,8 +89,14 @@ class SEQopts:
         ``treatment_level`` to keep when ``selection_random=True``, in (0, 1], default ``0.8``
     :param selection_random: Boolean to randomly subsample the ID-trials starting on the first
         level of ``treatment_level`` (e.g. the untreated), keeping a proportion ``selection_sample``
-        of them, sampled without replacement, and all other ID-trials. The sampled ID-trials are
-        not reweighted
+        of them, sampled without replacement, and all other ID-trials. This reduces computation.
+        The models are fit on the kept ID-trials unweighted - selection depends only on baseline
+        treatment, which the outcome model conditions on - while the risks and hazard ratios are
+        standardized with the kept ID-trials of the first level weighted by
+        ``1 / selection_sample``, so they refer to all ID-trials (the weighted hazard-ratio Cox
+        fit always uses lifelines, as scikit-survival's Cox model takes no weights). Selection is
+        made once, from ``seed``; bootstrap confidence intervals, which resample subjects from the
+        kept ID-trials, include the variability it adds
     :param subgroup_colname: Column name for subgroups to share the same weighting but different outcome model fits
     :param treatment_level: List of eligible treatment levels within treatment_col, default ``[0, 1]``
     :param trial_include: Boolean to force trial values into model covariates
