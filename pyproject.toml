@@ -98,6 +98,8 @@ SEQdata = ["data/*.csv"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# Dump stack traces if a test hangs, e.g. an OpenMP deadlock
+faulthandler_timeout = 300
 filterwarnings = [
     "ignore:FigureCanvasAgg is non-interactive:UserWarning",
     # joblib internals still assign array.shape; deprecated in NumPy 2.5,
