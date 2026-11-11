@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pySEQTarget import SEQopts, SEQuential
@@ -40,15 +41,6 @@ def test_followup_class():
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
 
-# patsy's natural-cubic cr() basis spans the constant function, so cr() plus
-# the model Intercept is always collinear by exactly one dimension. Fitted
-# values (all the spline path is used for) are unique regardless; only the
-# individual spline coefficients are non-identified, resolved deterministically
-# by statsmodels' pinv. statsmodels >= 0.15 reports the redundancy as a
-# SingularMatrixWarning.
-@pytest.mark.filterwarnings(
-    "ignore::statsmodels.tools.sm_exceptions.SingularMatrixWarning"
-)
 def test_followup_spline():
     data = load_data("SEQdata")
 
@@ -68,20 +60,22 @@ def test_followup_spline():
     s.fit()
     matrix = s.outcome_model[0]["outcome"].summary2().tables[1]["Coef."].to_list()
     expected = [
-        -4.804282252748607,
-        0.19115933860001255,
-        0.044310717515918724,
-        0.0005814999431447507,
-        0.12717121164606823,
-        0.0032948355025455216,
-        -0.013371824500839971,
-        0.19972467861548412,
-        -2.027245615586753,
-        -1.395729861856384,
-        -0.9397731941281695,
-        -0.4415335811772879,
+        -6.275803730636,
+        0.190835581131,
+        0.044181701547,
+        0.000583701185,
+        0.127096501708,
+        0.003280255156,
+        -0.013270653552,
+        0.199471860366,
+        0.281342694425,
+        0.453405473706,
+        0.758640425731,
+        0.966164355851,
     ]
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
+    X = s.outcome_model[0]["outcome"].model.exog
+    assert np.linalg.matrix_rank(X) == X.shape[1]
 
 
 def test_no_followup():
@@ -115,9 +109,6 @@ def test_no_followup():
     assert [round(x, 3) for x in matrix] == [round(x, 3) for x in expected]
 
 
-@pytest.mark.filterwarnings(
-    "ignore::statsmodels.tools.sm_exceptions.SingularMatrixWarning"
-)
 @pytest.mark.parametrize("method", ["ITT", "dose-response"])
 def test_followup_spline_with_km_curves_interactions(method):
     # km_curves adds treatment- or dose-by-followup interactions, which must

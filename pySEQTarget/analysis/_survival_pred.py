@@ -2,6 +2,8 @@ import numpy as np
 import polars as pl
 from patsy import PatsyError, dmatrix
 
+from ..expansion._selection import _selection_weight
+from ..helpers._bootstrap import _rescale_boot
 from ..helpers._fix_categories import (_fix_categories_for_predict,
                                        _model_design_info)
 from ..helpers._predict_model import _safe_predict
@@ -167,9 +169,7 @@ def _calculate_risk(self, data, val=None):
     followup_range = list(range(0, self.followup_max + 1))
 
     SDT = (
-        data.with_columns(
-            [pl.concat_str([pl.col(self.id_col), pl.col("trial")]).alias("TID")]
-        )
+        data.with_columns([pl.struct([self.id_col, "trial"]).alias("TID")])
         .group_by("TID")
         .first()
         .drop(["followup", f"followup{self.indicator_squared}"])
@@ -179,6 +179,42 @@ def _calculate_risk(self, data, val=None):
             [(pl.col("followup") ** 2).alias(f"followup{self.indicator_squared}")]
         )
     ).sort([self.id_col, "trial", "followup"])
+
+    # Standardize over the ID-trials before selection_random: weight the kept
+    # ID-trials by the inverse of their selection probability, taken from the
+    # observed baseline treatment before it is set to each arm below
+    sel_w = _selection_weight(self)
+    if sel_w is not None:
+        SDT = SDT.with_columns(sel_w.alias("_sel_w"))
+
+        def _mean(col):
+            return (pl.col(col) * pl.col("_sel_w")).sum() / pl.col("_sel_w").sum()
+
+    else:
+
+        def _mean(col):
+            return pl.col(col).mean()
+
+    def _boot_summary(frame, cols, main, name):
+        # Rescale to the full sample size (m-out-of-n bootstrap) for the SE and
+        # percentile CI of each curve. _store_boot_risks() takes the draws
+        # before this: _risk_estimates() rescales the RD and log RR itself.
+        return (
+            frame.select(["followup", main] + cols)
+            .unpivot(
+                index=["followup", main],
+                on=cols,
+                variable_name="bootID",
+                value_name=name,
+            )
+            .with_columns(
+                _rescale_boot(pl.col(name), pl.col(main), self.bootstrap_sample).alias(
+                    name
+                )
+            )
+            .drop(main)
+            .group_by("followup")
+        )
 
     risks = []
     for treatment_val in self.treatment_level:
@@ -206,7 +242,9 @@ def _calculate_risk(self, data, val=None):
         preds = _get_outcome_predictions(self, TxDT, val=val)
 
         # Drop original data columns — only followup and TID needed from here
-        TxDT = TxDT.select(["followup", "TID"])
+        TxDT = TxDT.select(
+            ["followup", "TID"] + (["_sel_w"] if sel_w is not None else [])
+        )
 
         pred_series = [pl.Series("pred_outcome", preds["outcome"][0])]
 
@@ -252,7 +290,7 @@ def _calculate_risk(self, data, val=None):
             inc_names = [n.replace("pred_outcome", "inc") for n in outcome_names]
             TxDT = (
                 TxDT.group_by("followup")
-                .agg([pl.col(col).mean() for col in surv_names + inc_names])
+                .agg([_mean(col).alias(col) for col in surv_names + inc_names])
                 .sort("followup")
                 .with_columns(pl.col("followup") + 1)
             )
@@ -271,7 +309,7 @@ def _calculate_risk(self, data, val=None):
                     ]
                 )
                 .group_by("followup")
-                .agg([pl.col(col).mean() for col in outcome_names])
+                .agg([_mean(col).alias(col) for col in outcome_names])
                 .sort("followup")
                 .with_columns([(1 - pl.col(col)).alias(col) for col in outcome_names])
                 .with_columns(pl.col("followup") + 1)
@@ -283,14 +321,7 @@ def _calculate_risk(self, data, val=None):
 
         if boot_cols:
             risk = (
-                TxDT.select(["followup"] + boot_cols)
-                .unpivot(
-                    index="followup",
-                    on=boot_cols,
-                    variable_name="bootID",
-                    value_name="risk",
-                )
-                .group_by("followup")
+                _boot_summary(TxDT, boot_cols, main_col, "risk")
                 .agg(
                     [
                         pl.col("risk").std().cast(pl.Float64).alias("SE"),
@@ -318,14 +349,7 @@ def _calculate_risk(self, data, val=None):
                 inc_boot_cols = [col for col in inc_names if col != "inc"]
                 if inc_boot_cols:
                     inc_risk = (
-                        TxDT.select(["followup"] + inc_boot_cols)
-                        .unpivot(
-                            index="followup",
-                            on=inc_boot_cols,
-                            variable_name="bootID",
-                            value_name="inc_val",
-                        )
-                        .group_by("followup")
+                        _boot_summary(TxDT, inc_boot_cols, "inc", "inc_val")
                         .agg(
                             [
                                 pl.col("inc_val")
@@ -344,6 +368,13 @@ def _calculate_risk(self, data, val=None):
                         )
                         .join(TxDT.select(["followup", "inc"]), on="followup")
                     )
+                    if self.bootstrap_CI_method == "se":
+                        inc_risk = inc_risk.with_columns(
+                            [
+                                (pl.col("inc") - z * pl.col("inc_SE")).alias("inc_LCI"),
+                                (pl.col("inc") + z * pl.col("inc_SE")).alias("inc_UCI"),
+                            ]
+                        )
                     risk = risk.join(inc_risk, on="followup")
                     final_cols = [
                         "followup",
@@ -491,9 +522,15 @@ def _calculate_risk(self, data, val=None):
 
 
 def _calculate_survival(self, risk_data):
+    if (risk_data["estimate"] == "survival").any():
+        return risk_data.clear()
     if self.bootstrap_nboot > 0:
         surv = risk_data.with_columns(
-            [(1 - pl.col(col)).alias(col) for col in ["pred", "LCI", "UCI"]]
+            [
+                (1 - pl.col("pred")).alias("pred"),
+                (1 - pl.col("UCI")).alias("LCI"),
+                (1 - pl.col("LCI")).alias("UCI"),
+            ]
         ).with_columns(pl.lit("survival").alias("estimate"))
     else:
         surv = risk_data.with_columns(

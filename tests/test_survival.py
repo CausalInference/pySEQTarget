@@ -357,3 +357,61 @@ def test_risk_se_columns_present_subgroup_delta_path():
     assert "log(RR) SE" in rr.columns
     assert "RD 90% LCI" in rd.columns
     assert "RR 90% LCI" in rr.columns
+
+
+def _curves(data, **opts):
+    s = SEQuential(
+        data,
+        id_col="ID",
+        time_col="time",
+        eligible_col="eligible",
+        treatment_col="tx_init",
+        outcome_col="outcome",
+        time_varying_cols=["N", "L", "P"],
+        fixed_cols=["sex"],
+        method="ITT",
+        parameters=SEQopts(km_curves=True, **opts),
+    )
+    s.expand()
+    if opts.get("bootstrap_nboot"):
+        s.bootstrap()
+    s.fit()
+    s.survival()
+    return s
+
+
+def test_every_id_trial_enters_the_curves():
+    # Pasted together, ID 1 trial 12 and ID 11 trial 2 are the same key; with
+    # IDs of equal width no two ID-trials can collide, so relabelling the
+    # people must not change the curves
+    data = load_data("SEQdata")
+    keys = ["estimate", "tx_init", "followup"]
+    as_given = _curves(data).km_data.sort(keys)
+    relabelled = _curves(data.with_columns(pl.col("ID") + 1000)).km_data.sort(keys)
+    assert (as_given["pred"] - relabelled["pred"]).abs().max() < 1e-12
+
+
+def test_compevent_curves_have_one_row_per_estimate():
+    data = load_data("SEQdata_LTFU").filter(pl.col("ID") <= 300)
+    km = _curves(data, compevent_colname="LTFU").km_data
+    keys = ["estimate", "tx_init", "followup"]
+    assert set(km["estimate"].unique()) == {"risk", "survival", "incidence"}
+    assert km.select(keys).is_duplicated().sum() == 0
+    wide = km.pivot(on="estimate", index=["tx_init", "followup"], values="pred")
+    assert (wide["survival"] + wide["risk"] - 1).abs().max() < 1e-12
+
+
+def test_bootstrapped_bounds_are_ordered_and_follow_the_method():
+    from scipy.stats import norm
+
+    data = load_data("SEQdata_LTFU").filter(pl.col("ID") <= 300)
+    km = _curves(data, compevent_colname="LTFU", bootstrap_nboot=3, seed=42).km_data
+    assert (km["LCI"] <= km["UCI"]).all()
+    # bootstrap_CI_method defaults to "se": normal bounds for every estimate
+    inc = km.filter((pl.col("estimate") == "incidence") & (pl.col("followup") > 0))
+    z = norm.ppf(0.975)
+    lower = (inc["pred"] - z * inc["SE"]).clip(0.0, 1.0)
+    assert (inc["LCI"] - lower).abs().max() < 1e-12
+
+    km = _curves(load_data("SEQdata"), bootstrap_nboot=3, seed=42).km_data
+    assert (km["LCI"] <= km["UCI"]).all()

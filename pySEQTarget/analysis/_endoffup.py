@@ -12,6 +12,7 @@ import numpy as np
 import polars as pl
 from scipy import stats
 
+from ..helpers._bootstrap import _rescale_boot
 from ..weighting._weight_stats import _weight_bounds
 from ._risk_estimates import _ci_label
 
@@ -279,13 +280,16 @@ def _create_endoffup(self):
     if has_ci:
         se_rows, lci_rows, uci_rows = [], [], []
         for key in keys:
-            draws = boot_estimates(key)
-            se = float(np.nanstd(draws, ddof=1))
             point = float(
                 full.filter(
                     pl.all_horizontal([pl.col(c) == v for c, v in zip(key_cols, key)])
                 )["estimate"][0]
             )
+            # Rescale to the full sample size (m-out-of-n bootstrap) for the
+            # per-arm SE and CI; the between-arm contrasts below are rescaled on
+            # their own scales
+            draws = _rescale_boot(boot_estimates(key), point, self.bootstrap_sample)
+            se = float(np.nanstd(draws, ddof=1))
             if use_se:
                 lci, uci = point - z * se, point + z * se
             else:
@@ -348,15 +352,23 @@ def _create_endoffup(self):
                 if has_ci:
                     kx = ((g,) if g is not None else ()) + (a_x,)
                     ky = ((g,) if g is not None else ()) + (a_y,)
-                    d = boot_estimates(ky) - boot_estimates(kx)
+                    d = _rescale_boot(
+                        boot_estimates(ky) - boot_estimates(kx),
+                        diff,
+                        self.bootstrap_sample,
+                    )
                     d_se = float(np.nanstd(d, ddof=1))
+                    # Ratio summarised (and rescaled) on the log scale, as in
+                    # _risk_estimates; non-positive draws dropped
                     with np.errstate(divide="ignore", invalid="ignore"):
                         r = boot_estimates(ky) / boot_estimates(kx)
-                    r_valid = r[np.isfinite(r) & (r > 0)]
+                    log_r = np.log(r[np.isfinite(r) & (r > 0)])
+                    if 0 < ratio < float("inf"):
+                        log_r = _rescale_boot(
+                            log_r, np.log(ratio), self.bootstrap_sample
+                        )
                     r_logse = (
-                        float(np.std(np.log(r_valid), ddof=1))
-                        if r_valid.size > 1
-                        else float("nan")
+                        float(np.std(log_r, ddof=1)) if log_r.size > 1 else float("nan")
                     )
                     if use_se:
                         d_lci, d_uci = diff - z * d_se, diff + z * d_se
@@ -368,9 +380,9 @@ def _create_endoffup(self):
                     else:
                         d_lci = float(np.nanquantile(d, alpha))
                         d_uci = float(np.nanquantile(d, 1 - alpha))
-                        if r_valid.size > 1:
-                            r_lci = float(np.quantile(r_valid, alpha))
-                            r_uci = float(np.quantile(r_valid, 1 - alpha))
+                        if log_r.size > 1:
+                            r_lci = float(np.exp(np.quantile(log_r, alpha)))
+                            r_uci = float(np.exp(np.quantile(log_r, 1 - alpha)))
                         else:
                             r_lci = r_uci = float("nan")
                     row[f"Difference {ci_label} LCI"] = d_lci

@@ -1,6 +1,30 @@
 import polars as pl
 
 
+def _selection_weight(self):
+    """Inverse-probability weights for the ID-trials kept by ``selection_random``.
+
+    ``selection_random`` keeps a proportion ``selection_sample`` of the
+    ID-trials starting on the first level of ``treatment_level`` and all other
+    ID-trials. Selection depends only on baseline treatment, which the outcome
+    model conditions on, so the model needs no correction, but standardizing
+    over the kept ID-trials under-represents the first arm's covariate
+    distribution. Each kept ID-trial of that arm stands for
+    ``1 / selection_sample`` ID-trials.
+
+    Returns a polars expression on the observed baseline treatment, or ``None``
+    when no selection was made.
+    """
+    if not self.selection_random:
+        return None
+    tx_bas = f"{self.treatment_col}{self.indicator_baseline}"
+    return (
+        pl.when(pl.col(tx_bas) == self.treatment_level[0])
+        .then(pl.lit(1 / self.selection_sample))
+        .otherwise(pl.lit(1.0))
+    )
+
+
 def _random_selection(self):
     """
     Handles the case where random selection is applied for data from

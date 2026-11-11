@@ -9,14 +9,11 @@ from pandas.api.types import is_numeric_dtype
 
 from ..helpers._check_design import _check_design
 from ..helpers._fix_categories import _cast_fixed_categories
-from ..helpers._spline import _compute_spline_knots, _cr_term
+from ..helpers._spline import _bake_spline_knots
 from ..weighting._weight_stats import _weight_bounds
 
 
-def _apply_spline_formula(formula, indicator_squared, spline_knots):
-    inner_knots, lower, upper = spline_knots
-    spline = _cr_term("followup", inner_knots, lower, upper)
-
+def _apply_spline_formula(formula, indicator_squared, spline):
     # Mark interactions first, so dropping the bare followup terms below
     # cannot reach into the spline, which contains "followup" itself
     mark = "_SPLINE_"
@@ -105,8 +102,10 @@ def _outcome_fit(
 
     if self.followup_spline:
         if getattr(self, "_current_boot_idx", None) is None:
-            self._followup_spline_knots = _compute_spline_knots(
-                self.DT["followup"].to_numpy(), df=self.followup_spline_df
+            # Centred, so the spline is not collinear with the intercept
+            self._followup_spline_knots = _bake_spline_knots(
+                f'cr(followup, df={self.followup_spline_df}, constraints="center")',
+                self.DT,
             )
         formula = _apply_spline_formula(
             formula, self.indicator_squared, self._followup_spline_knots

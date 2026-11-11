@@ -1,4 +1,4 @@
-from ._bootstrap import bootstrap_loop
+from ._bootstrap import _rescale_boot, bootstrap_loop
 from ._col_string import _col_string
 from ._format_time import _format_time
 from ._offloader import Offloader
@@ -11,6 +11,7 @@ from ._spline import (_bake_model_formulas, _bake_spline_knots,
 
 __all__ = [
     "bootstrap_loop",
+    "_rescale_boot",
     "_col_string",
     "_format_time",
     "Offloader",
