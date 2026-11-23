@@ -57,6 +57,9 @@ gpu = [
     "jax[cuda12]; sys_platform == 'linux' and python_version < '3.15'",
     "jax; sys_platform != 'linux' and python_version < '3.15'",
 ]
+condense = [
+    "torch",
+]
 dev = [
     "pySEQTarget[output,gpu]",
     "pytest",

@@ -23,6 +23,9 @@ class SEQopts:
     :param cense_numerator: Override to specify numerator patsy formula for censoring models
     :param cense_eligible_colname: Column name to identify which rows are eligible for censoring model fitting
     :param compevent_colname: Column name specifying a competing event to the outcome
+    :param condense: Boolean to fit on a few reweighted rows per ID in place of the
+        full expansion, which is then built a batch of IDs at a time (requires torch),
+        default ``False``
     :param covariates: Override to specify the outcome patsy formula for outcome model fitting
     :param denominator: Override to specify the patsy formula for denominator weight
         model fitting. A single string fits the same model in every treatment arm.
@@ -134,6 +137,7 @@ class SEQopts:
     cense_numerator: Optional[str] = None
     cense_eligible_colname: Optional[str] = None
     compevent_colname: Optional[str] = None
+    condense: bool = False
     covariates: Optional[str] = None
     cox_package: Literal["lifelines", "scikit-survival"] = "lifelines"
     denominator: Optional[Union[str, List[str]]] = None
@@ -190,6 +194,7 @@ class SEQopts:
 
     def _validate_bools(self):
         bools = [
+            "condense",
             "end_of_fup",
             "excused",
             "expand_only",
