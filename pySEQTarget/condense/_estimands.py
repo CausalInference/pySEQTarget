@@ -8,6 +8,7 @@ from scipy.stats import norm
 
 from ..analysis._outcome_fit import _cast_categories
 from ..analysis._risk_estimates import _risk_estimates
+from ..helpers._bootstrap import _rescale_boot
 
 # max hazard cells held per chunk
 _CHUNK_CELLS = 2e7
@@ -126,8 +127,9 @@ def _curves(c, baseline, names, coefficients):
     }
 
 
-def _interval(point, boot, level, method, lower=True):
+def _interval(point, boot, level, method, sample):
     alpha = 1 - level
+    boot = _rescale_boot(boot, point[:, None], sample)
     se = boot.std(axis=1, ddof=1)
     if method == "se":
         z = norm.ppf(1 - alpha / 2)
@@ -137,7 +139,7 @@ def _interval(point, boot, level, method, lower=True):
     return se, np.array(lo), np.array(hi)
 
 
-def _survival(c, main, replicates, CI, CI_method, risk_times):
+def _survival(c, main, replicates, CI, CI_method, risk_times, sample):
     a = c.analysis
     nboot = len(replicates)
     followup = np.arange(a.followup_max + 2)
@@ -147,7 +149,7 @@ def _survival(c, main, replicates, CI, CI_method, risk_times):
         values = np.vstack([np.full((1, values.shape[1]), start), values])
         cols = {"followup": followup, "pred": values[:, 0]}
         if nboot:
-            se, lo, hi = _interval(values[:, 0], values[:, 1:], CI, CI_method)
+            se, lo, hi = _interval(values[:, 0], values[:, 1:], CI, CI_method, sample)
             cols |= {"SE": se, "LCI": lo, "UCI": hi}
         out = pl.DataFrame(cols).with_columns(
             pl.lit(level).cast(pl.Int32).alias(a.treatment_col),
@@ -192,6 +194,7 @@ def _survival(c, main, replicates, CI, CI_method, risk_times):
         bootstrap_nboot=nboot,
         bootstrap_CI=CI,
         bootstrap_CI_method=CI_method,
+        bootstrap_sample=sample,
         treatment_level=a.treatment_level,
         treatment_col=a.treatment_col,
     )
@@ -243,7 +246,7 @@ def _simulate(h, hc, rng):
     return time, status
 
 
-def _hazard(c, main, replicates, CI, CI_method, seed):
+def _hazard(c, main, replicates, CI, CI_method, seed, sample):
     a = c.analysis
     if a.method == "dose-response":
         raise NotImplementedError(
@@ -252,7 +255,7 @@ def _hazard(c, main, replicates, CI, CI_method, seed):
     out = []
     for subgroup, baseline, names in _groups(c):
         row = _hazard_within(
-            c, baseline, names, main, replicates, CI, CI_method, seed
+            c, baseline, names, main, replicates, CI, CI_method, seed, sample
         )
         if subgroup is not None:
             row = row.with_columns(pl.lit(subgroup).alias(a.subgroup_colname))
@@ -260,7 +263,7 @@ def _hazard(c, main, replicates, CI, CI_method, seed):
     return pl.concat(out, how="diagonal")
 
 
-def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed):
+def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed, sample):
     a = c.analysis
     levels = list(a.treatment_level)
     coefficients = _stacked(names, main, replicates)
@@ -295,6 +298,7 @@ def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed):
     full, boot = log_hr[0], np.array([x for x in log_hr[1:] if np.isfinite(x)])
     out = {"Hazard ratio": [float(np.exp(full))]}
     if len(boot) and np.isfinite(full):
+        boot = _rescale_boot(boot, full, sample)
         if CI_method == "se":
             z = norm.ppf(1 - (1 - CI) / 2)
             se = np.std(boot)

@@ -436,13 +436,14 @@ class Condensed:
         return fit
 
     def end_of_followup(
-        self, nboot=0, sample=1.0, seed=None, CI=None, CI_method=None, resamples=None
+        self, nboot=0, sample=None, seed=None, CI=None, CI_method=None, resamples=None
     ):
         """
         Assembles the end-of-follow-up estimates (``end_of_fup=True``)
 
         :param nboot: Number of bootstrap resamples
-        :param sample: Share of the cohort drawn per resample
+        :param sample: Share of the cohort drawn per resample, default the
+            analysis's ``bootstrap_sample``
         :param seed: RNG seed
         :param CI: Confidence interval level
         :param CI_method: Confidence interval method ['se' or 'percentile']
@@ -453,6 +454,7 @@ class Condensed:
         a = self.analysis
         if getattr(self, "eof", None) is None:
             raise ValueError("Not an end-of-follow-up analysis (end_of_fup=False)")
+        sample = a.bootstrap_sample if sample is None else sample
         if resamples is None:
             rng = np.random.default_rng(a.seed if seed is None else seed)
             size = int(sample * len(self.cohort))
@@ -474,19 +476,28 @@ class Condensed:
             [estimate()] + [estimate(counts) for counts in resamples],
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
+            sample,
         )
 
-    def bootstrap(self, nboot, sample=1.0, seed=None):
+    def bootstrap(self, nboot, sample=None, seed=None):
         """
         Draws bootstrap resamples and fits every outcome model on each
 
         :param nboot: Number of bootstrap resamples
-        :param sample: Share of the cohort drawn per resample
+        :param sample: Share of the cohort drawn per resample, default the
+            analysis's ``bootstrap_sample``
         :param seed: RNG seed
         """
         seed = self.analysis.seed if seed is None else seed
-        self.replicates = _replicates(self, nboot, sample, seed)
+        if sample is not None:
+            self.bootstrap_sample = sample
+        self.replicates = _replicates(self, nboot, self._sample(), seed)
         return self.replicates
+
+    def _sample(self):
+        # Share of the cohort each replicate drew; their spread is rescaled
+        # to the full cohort as the package does (m-out-of-n bootstrap)
+        return getattr(self, "bootstrap_sample", self.analysis.bootstrap_sample)
 
     def _main(self, fits):
         fits = fits or {}
@@ -514,6 +525,7 @@ class Condensed:
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
             a.risk_times if risk_times is None else risk_times,
+            self._sample(),
         )
 
     def hazard(self, fits=None, CI=None, CI_method=None, seed=None):
@@ -534,6 +546,7 @@ class Condensed:
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
             seed,
+            self._sample(),
         )
 
     @staticmethod

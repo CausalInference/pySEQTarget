@@ -107,7 +107,7 @@ class Eof:
         )
         return est.join(self.totals, on=self.by, how="inner").sort(self.by)
 
-    def tables(self, estimates, CI, CI_method):
+    def tables(self, estimates, CI, CI_method, sample):
         a = self.analysis
         stub = SimpleNamespace(
             treatment_col=a.treatment_col,
@@ -117,6 +117,7 @@ class Eof:
             end_of_fup_time=a.end_of_fup_time,
             bootstrap_CI=CI,
             bootstrap_CI_method=CI_method,
+            bootstrap_sample=sample,
             outcome_model=[{"eof": e} for e in estimates],
         )
         return _create_endoffup(stub)

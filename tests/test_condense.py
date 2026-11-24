@@ -1,4 +1,5 @@
 import copy
+import re
 
 import numpy as np
 import patsy
@@ -139,7 +140,13 @@ def test_census_reproduces_the_package_formulas(tmp_path):
             rtol=1e-12,
             atol=1e-12,
         )
-    assert census.followup_knots == s._followup_spline_knots
+    followup = {"followup": s.DT["followup"].to_numpy()}
+    np.testing.assert_allclose(
+        patsy.dmatrix(census.followup_knots, followup),
+        patsy.dmatrix(s._followup_spline_knots, followup),
+        rtol=1e-12,
+        atol=1e-12,
+    )
     frame = _outcome_frame(s, s)
     block = _Block(
         [_Model("outcome", "outcome", census.covariates)],
@@ -148,7 +155,15 @@ def test_census_reproduces_the_package_formulas(tmp_path):
         "ID",
         "weight",
     )
-    assert block.columns == list(s.outcome_model[0]["outcome"].model.exog_names)
+
+    # the names carry the centring constants, equal to rounding (checked above)
+    def names(columns):
+        return [
+            re.sub(r"constraints=\[\[[^]]*\]\]", "constraints", c) for c in columns
+        ]
+
+    exog_names = s.outcome_model[0]["outcome"].model.exog_names
+    assert names(block.columns) == names(exog_names)
 
 
 @pytest.mark.parametrize(
