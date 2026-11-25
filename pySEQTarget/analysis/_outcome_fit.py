@@ -141,10 +141,10 @@ def _outcome_fit(
                 design_cache=cache,
             )
 
-        case "jax":
-            from ..helpers._jax_fit import _fit_jax
+        case "torch":
+            from ..helpers._torch_fit import _fit_torch
 
-            return _fit_jax(
+            return _fit_torch(
                 full_formula,
                 df_pd,
                 var_weights=var_weights,

@@ -58,7 +58,7 @@ class SEQopts:
     :param expand_only: If True, ``SEQuential.expand()`` returns the expanded dataset and skips weighting,
         modelling, and survival steps
     :param glm_package: Backend for fitting logistic (outcome/competing-event)
-        models ["statsmodels", "glum", or "jax"], default "statsmodels".
+        models ["statsmodels", "glum", or "torch"], default "statsmodels".
     :param followup_class: Boolean to force followup values to be treated as classes
     :param followup_include: Boolean to force regular followup values into model covariates
     :param followup_spline: Boolean to force followup values to be fit to cubic spline
@@ -148,7 +148,7 @@ class SEQopts:
     excused: bool = False
     excused_colnames: List[str] = field(default_factory=lambda: [])
     expand_only: bool = False
-    glm_package: Literal["statsmodels", "glum", "jax"] = "statsmodels"
+    glm_package: Literal["statsmodels", "glum", "torch"] = "statsmodels"
     followup_class: bool = False
     followup_include: bool = True
     followup_max: int = None
@@ -271,8 +271,8 @@ class SEQopts:
             )
         if self.bootstrap_CI_method not in ["se", "percentile"]:
             raise ValueError("bootstrap_CI_method must be one of 'se' or 'percentile'")
-        if self.glm_package not in ["statsmodels", "glum", "jax"]:
-            raise ValueError("glm_package must be 'statsmodels', 'glum', or 'jax'")
+        if self.glm_package not in ["statsmodels", "glum", "torch"]:
+            raise ValueError("glm_package must be 'statsmodels', 'glum', or 'torch'")
         if self.cox_package not in ["lifelines", "scikit-survival"]:
             raise ValueError("cox_package must be 'lifelines' or 'scikit-survival'")
         if self.end_of_fup_type not in ["binary", "continuous"]:

@@ -4,11 +4,27 @@ import numpy as np
 import pandas as pd
 import patsy
 import polars as pl
+import torch
+from scipy.special import softmax
 
-from ._jax_logistic import MultinomialLogisticRegression
+
+# weighted multinomial logistic Newton steps with class 0 as reference
+def _newton(X, y, w, B, max_iter, ridge=1e-8):
+    Y = torch.nn.functional.one_hot(y, B.shape[1] + 1)[:, 1:].to(X.dtype)
+    w = w / w.sum()
+    m = B.numel()
+    eye = torch.eye(m, dtype=X.dtype, device=X.device)
+    for _ in range(max_iter):
+        eta = X @ B
+        p = torch.softmax(torch.cat([torch.zeros_like(eta[:, :1]), eta], 1), 1)[:, 1:]
+        g = X.T @ (w[:, None] * (p - Y))
+        V = torch.diag_embed(p) - p[:, :, None] * p[:, None, :]
+        H = torch.einsum("n,nj,nab,nk->jakb", w, X, V, X).reshape(m, m)
+        B = B - torch.linalg.solve(H + ridge * eye, g.reshape(-1)).reshape(B.shape)
+    return B
 
 
-class _JaxFit:
+class _TorchFit:
     def __init__(
         self,
         formula,
@@ -26,13 +42,9 @@ class _JaxFit:
         self._feature_names = feature_names
         self._X_design = X_mat.values
         self._nobs = X_mat.shape[0]
-        # Lazily-filled coefficient covariance cache: lets __getstate__ drop the
-        # full design matrix while keeping bse/summary working after unpickle.
+        # cached covariance lets pickling drop the design matrix
         self._cov_cached = None
-        # Inputs to rebuild ``design_info`` on unpickle: patsy DesignInfo cannot
-        # be pickled (patsy #26), so keep the formula plus a tiny reference
-        # frame (which preserves each categorical column's full, ordered dtype
-        # categories) and re-parse on __setstate__. Mirrors _GlumFit.
+        # formula and reference frame rebuild the unpicklable patsy DesignInfo
         self._formula = formula
         self._ref_frame = df_pd.head(2).copy()
         X_arr = X_mat.drop(columns=["Intercept"], errors="ignore").values
@@ -46,21 +58,26 @@ class _JaxFit:
         if var_weights is not None:
             self._sample_weight = np.asarray(var_weights, dtype=float)
 
-        jax_model = MultinomialLogisticRegression(
-            max_iter=max_iter,
-            n_classes=self._n_classes,
-        )
+        # fit on standardised columns with constants guarded
+        mean = X_arr.mean(axis=0)
+        std = X_arr.std(axis=0) + 1e-7
+        Z = np.column_stack([np.ones(len(X_arr)), (X_arr - mean) / std])
+        B = self._warm_init(start_params, mean, std)
+        if B is None:
+            B = np.zeros((Z.shape[1], self._n_classes - 1))
+        w = self._sample_weight if var_weights is not None else np.ones(len(Z))
 
-        jax_model.mean_ = X_arr.mean(axis=0)
-        jax_model.std_ = X_arr.std(axis=0) + jax_model.eps  # guard constants
-        self._jax = jax_model
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        init_params = self._warm_init(start_params, X_arr.shape[1])
-        jax_model.fit(
-            X_arr, y_idx, sample_weight=self._sample_weight, init_params=init_params
-        )
+        def t(a, dtype=torch.float64):
+            return torch.as_tensor(a, dtype=dtype, device=device)
 
-        # statsmodels 'like' exposure
+        B = _newton(t(Z), t(y_idx, torch.long), t(w), t(B), max_iter).cpu().numpy()
+        # back to the original scale
+        self._coef = B[1:] / std[:, None]
+        self._intercept = B[0] - mean @ self._coef
+
+        # statsmodels like interface
         self._build_model_namespace(design_info, feature_names)
         self.exog_names = feature_names
         self.params = self._build_params()
@@ -72,14 +89,10 @@ class _JaxFit:
         )
 
     def __getstate__(self):
-        # Drop the unpicklable patsy DesignInfo and the SimpleNamespaces that
-        # reference it; __setstate__ rebuilds them from the formula + ref_frame.
+        # drop the DesignInfo and design matrix but keep the covariance
         state = self.__dict__.copy()
         state.pop("_design_info", None)
         state.pop("model", None)
-        # Replace the full design matrix with the small cached covariance so
-        # the pickled model stays lightweight. Covariance is only implemented
-        # for binary fits; multiclass keeps None (bse raises either way).
         if state.get("_cov_cached") is None and self._n_classes == 2:
             state["_cov_cached"] = self.cov_params()
         state["_X_design"] = None
@@ -91,61 +104,43 @@ class _JaxFit:
             self._formula, self._ref_frame, return_type="dataframe"
         )
         if list(X_mat.columns) != list(self._feature_names):
-            # The reference frame's categorical ordering must reproduce the
-            # frozen column structure exactly, or the coefficients would pair
-            # with the wrong design columns on predict. Fail loudly rather
-            # than return silently wrong predictions.
+            # coefficients would pair with the wrong columns
             raise RuntimeError(
-                "_JaxFit design columns changed on unpickle: "
+                "_TorchFit design columns changed on unpickle: "
                 f"{list(X_mat.columns)} != {list(self._feature_names)}"
             )
         self._design_info = X_mat.design_info
         self._build_model_namespace(self._design_info, self._feature_names)
 
-    def _coef_components(self):
-        W, b = self._jax.params
-        coef = np.asarray(W)
-        intercept = np.asarray(b)
-        mean = np.asarray(self._jax.mean_)
-        std = np.asarray(self._jax.std_)
-        intercept = intercept - (coef * (mean / std)[:, None]).sum(axis=0)
-        coef = coef / std[:, None]
-
-        return intercept, coef
-
     def _build_params(self):
-        intercept, coef = self._coef_components()
         if self._n_classes == 2:
             return pd.Series(
-                np.concatenate([intercept, coef[:, 0]]), index=self._feature_names
+                np.concatenate([self._intercept, self._coef[:, 0]]),
+                index=self._feature_names,
             )
-        data = np.vstack([intercept[None, :], coef])
+        data = np.vstack([self._intercept[None, :], self._coef])
         return pd.DataFrame(
             data,
             index=self._feature_names,
             columns=[f"class_{c}" for c in self.classes_[1:]],
         )
 
-    def _warm_init(self, start_params, n_features):
+    def _warm_init(self, start_params, mean, std):
         if start_params is None or self._n_classes != 2:
             return None
         sp_values, sp_names = start_params
         if list(sp_names) != self._feature_names:
             return None
         sp_values = np.asarray(sp_values, dtype=float)
-        intercept = float(sp_values[0])
         coef = sp_values[1:]
-        if coef.shape[0] != n_features:
+        if coef.shape[0] != mean.shape[0]:
             return None
+        # standardised scale with the intercept first
+        return np.concatenate([[sp_values[0] + coef @ mean], coef * std])[:, None]
 
-        W = np.zeros((n_features, 1))
-        b = np.zeros(1)
-        mean = np.asarray(self._jax.mean_)
-        std = np.asarray(self._jax.std_)
-        W[:, 0] = coef * std
-        b[0] = intercept + float(np.sum(coef * mean))
-
-        return (W, b)
+    def _probs(self, X_arr):
+        eta = self._intercept + X_arr @ self._coef
+        return softmax(np.column_stack([np.zeros(len(eta)), eta]), axis=1)
 
     def predict(self, data, transform=True):
         if transform:
@@ -156,12 +151,11 @@ class _JaxFit:
             X_arr = X.drop(columns=["Intercept"], errors="ignore").values
         else:
             X_arr = np.asarray(data)[:, 1:]
-        probs = np.asarray(self._jax.predict(X_arr), dtype=np.float64)
+        probs = self._probs(X_arr)
         return probs[:, 1] if self._n_classes == 2 else probs
 
     def remove_data(self):
-        """Drop the per-row design matrix and weights, as statsmodels' remove_data."""
-        # Covariance is only implemented for binary fits
+        # covariance is binary only
         if self._n_classes == 2:
             self.cov_params()
         self._X_design = None
@@ -170,7 +164,7 @@ class _JaxFit:
     def cov_params(self):
         if self._n_classes != 2:
             raise NotImplementedError(
-                "Standard errors are only implemented for binary jax fits."
+                "Standard errors are only implemented for binary torch fits."
             )
         if self._cov_cached is not None:
             return self._cov_cached
@@ -180,7 +174,7 @@ class _JaxFit:
                 "cov_params unavailable: design matrix was dropped on pickle "
                 "and no covariance was cached."
             )
-        mu = np.asarray(self._jax.predict(X[:, 1:]))[:, 1]
+        mu = self._probs(X[:, 1:])[:, 1]
         w = mu * (1.0 - mu)
         if self._sample_weight is not None:
             w = w * self._sample_weight
@@ -218,7 +212,7 @@ class _JaxFit:
         info = pd.DataFrame(
             {
                 " ": [
-                    "GLM (jax backend)",
+                    "GLM (torch backend)",
                     "Binomial",
                     "logit",
                     str(self._nobs),
@@ -233,5 +227,5 @@ class _JaxFit:
         return smry
 
 
-def _fit_jax(formula, data, var_weights=None, start_params=None):
-    return _JaxFit(formula, data, var_weights=var_weights, start_params=start_params)
+def _fit_torch(formula, data, var_weights=None, start_params=None):
+    return _TorchFit(formula, data, var_weights=var_weights, start_params=start_params)

@@ -3,13 +3,12 @@ import pandas as pd
 import pytest
 from pytest import approx
 
-# jax is an optional dependency (the ``gpu`` extra) and is not installed on
-# every platform — skip the whole module rather than erroring at collection.
-pytest.importorskip("jax")
+# torch is optional so skip the module without it
+pytest.importorskip("torch")
 
 from pySEQTarget import SEQopts, SEQuential  # noqa: E402
 from pySEQTarget.data import load_data  # noqa: E402
-from pySEQTarget.helpers._jax_fit import _JaxFit  # noqa: E402
+from pySEQTarget.helpers._torch_fit import _TorchFit  # noqa: E402
 
 
 def _fit(method, glm_package, dataset="SEQdata", **opts):
@@ -35,33 +34,33 @@ def _outcome_coefs(s):
     return list(s.outcome_model[0]["outcome"].params)
 
 
-def test_jax_matches_statsmodels_ITT():
+def test_torch_matches_statsmodels_ITT():
     sm = _outcome_coefs(_fit("ITT", "statsmodels"))
-    jx = _outcome_coefs(_fit("ITT", "jax"))
-    assert jx == approx(sm, rel=1e-2, abs=2e-3)
+    tc = _outcome_coefs(_fit("ITT", "torch"))
+    assert tc == approx(sm, rel=1e-2, abs=2e-3)
 
 
-def test_jax_matches_statsmodels_censoring_preexpansion():
+def test_torch_matches_statsmodels_censoring_preexpansion():
     opts = dict(weighted=True, weight_preexpansion=True)
     sm = _outcome_coefs(_fit("censoring", "statsmodels", **opts))
-    jx = _outcome_coefs(_fit("censoring", "jax", **opts))
-    assert jx == approx(sm, rel=1e-2, abs=2e-3)
+    tc = _outcome_coefs(_fit("censoring", "torch", **opts))
+    assert tc == approx(sm, rel=1e-2, abs=2e-3)
 
 
-def test_jax_matches_statsmodels_censoring_postexpansion():
+def test_torch_matches_statsmodels_censoring_postexpansion():
     opts = dict(weighted=True, weight_preexpansion=False)
     sm = _outcome_coefs(_fit("censoring", "statsmodels", **opts))
-    jx = _outcome_coefs(_fit("censoring", "jax", **opts))
-    assert jx == approx(sm, rel=1e-2, abs=2e-3)
+    tc = _outcome_coefs(_fit("censoring", "torch", **opts))
+    assert tc == approx(sm, rel=1e-2, abs=2e-3)
 
 
-def test_jax_standard_errors_match_statsmodels():
+def test_torch_standard_errors_match_statsmodels():
     sm_model = _fit("ITT", "statsmodels").outcome_model[0]["outcome"]
-    jx_model = _fit("ITT", "jax").outcome_model[0]["outcome"]
-    assert list(jx_model.bse) == approx(list(sm_model.bse), rel=1e-2, abs=1e-3)
+    tc_model = _fit("ITT", "torch").outcome_model[0]["outcome"]
+    assert list(tc_model.bse) == approx(list(sm_model.bse), rel=1e-2, abs=1e-3)
 
 
-def test_jax_bootstrap_survival_matches_statsmodels():
+def test_torch_bootstrap_survival_matches_statsmodels():
     common = dict(bootstrap_nboot=2, seed=1636, km_curves=True)
 
     def risk_diff(pkg):
@@ -86,7 +85,7 @@ def test_jax_bootstrap_survival_matches_statsmodels():
         assert rd["RD 95% LCI"].null_count() == 0
         return rd["Risk Difference"].to_list()
 
-    assert risk_diff("jax") == approx(risk_diff("statsmodels"), rel=1e-2, abs=2e-3)
+    assert risk_diff("torch") == approx(risk_diff("statsmodels"), rel=1e-2, abs=2e-3)
 
 
 def _binary_frame(seed=1, n=2000):
@@ -97,13 +96,13 @@ def _binary_frame(seed=1, n=2000):
     return pd.DataFrame({"y": y, "x1": x1, "x2": x2})
 
 
-def test_jax_multinomial_label_detection():
+def test_torch_multinomial_label_detection():
     rng = np.random.default_rng(0)
     n = 900
     x = rng.normal(size=n)
     df = pd.DataFrame({"y": rng.integers(0, 3, size=n), "x": x})
 
-    model = _JaxFit("y ~ x", df)
+    model = _TorchFit("y ~ x", df)
     assert list(model.classes_) == [0, 1, 2]
 
     probs = model.predict(df)
@@ -111,10 +110,10 @@ def test_jax_multinomial_label_detection():
     assert probs.sum(axis=1) == approx(np.ones(n), abs=1e-5)
 
 
-def test_jax_warm_start_reaches_same_optimum():
+def test_torch_warm_start_reaches_same_optimum():
     df = _binary_frame()
-    cold = _JaxFit("y ~ x1 + x2", df)
-    warm = _JaxFit(
+    cold = _TorchFit("y ~ x1 + x2", df)
+    warm = _TorchFit(
         "y ~ x1 + x2",
         df,
         start_params=(cold.params.values, list(cold.model.exog_names)),
@@ -122,15 +121,12 @@ def test_jax_warm_start_reaches_same_optimum():
     assert list(warm.params) == approx(list(cold.params), rel=1e-3, abs=1e-3)
 
 
-def test_jax_fit_pickle_roundtrip():
-    # _JaxFit holds a patsy DesignInfo, which cannot be pickled; offload and
-    # the parallel bootstrap both pickle fitted models. The wrapper must
-    # rebuild the design info on unpickle (same strategy as _GlumFit) and keep
-    # predict/bse/summary working.
+def test_torch_fit_pickle_roundtrip():
+    # offload and parallel bootstrap pickle fitted models
     import pickle
 
     df = _binary_frame()
-    m = _JaxFit("y ~ x1 + x2", df)
+    m = _TorchFit("y ~ x1 + x2", df)
 
     m2 = pickle.loads(pickle.dumps(m))
 
@@ -140,7 +136,7 @@ def test_jax_fit_pickle_roundtrip():
     assert str(m2.summary())
 
 
-def test_jax_offload_bootstrap_survival():
+def test_torch_offload_bootstrap_survival():
     # End-to-end: offload=True pickles every fitted model to disk via joblib.
     data = load_data("SEQdata")
     s = SEQuential(
@@ -154,7 +150,7 @@ def test_jax_offload_bootstrap_survival():
         fixed_cols=["sex"],
         method="ITT",
         parameters=SEQopts(
-            glm_package="jax",
+            glm_package="torch",
             bootstrap_nboot=2,
             seed=7,
             km_curves=True,
@@ -168,7 +164,7 @@ def test_jax_offload_bootstrap_survival():
     assert s.km_data.height > 0
 
 
-def test_jax_parallel_bootstrap():
+def test_torch_parallel_bootstrap():
     # End-to-end: parallel=True pickles the SEQuential object into worker
     # processes and the fitted models back.
     data = load_data("SEQdata")
@@ -183,7 +179,7 @@ def test_jax_parallel_bootstrap():
         fixed_cols=["sex"],
         method="ITT",
         parameters=SEQopts(
-            glm_package="jax", bootstrap_nboot=2, seed=7, parallel=True, ncores=2
+            glm_package="torch", bootstrap_nboot=2, seed=7, parallel=True, ncores=2
         ),
     )
     s.expand()
