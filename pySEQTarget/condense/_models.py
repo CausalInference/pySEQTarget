@@ -36,6 +36,12 @@ class _Rows:
 
 class _Block:
     def __init__(self, models, gold, categories, id_col, weight_col=None):
+        if len(models) > 63:
+            # rows record their models as bits of an int64 code
+            raise ValueError(
+                f"condense fits at most 63 models together, not {len(models)}; "
+                "use fewer subgroups"
+            )
         self.models = models
         self.categories = categories
         self.id_col = id_col

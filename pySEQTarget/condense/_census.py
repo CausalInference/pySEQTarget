@@ -3,7 +3,8 @@ import patsy
 import polars as pl
 from pandas.api.types import CategoricalDtype
 
-from ..analysis._outcome_fit import _apply_spline_formula, _cast_categories
+from ..analysis._outcome_fit import (_apply_spline_formula, _cast_categories,
+                                     _followup_spline_term)
 from ..helpers._spline import _CR_DF, _compute_spline_knots, _cr_term
 from ._eof import _eof_last_period
 from ._frame import _expanded, _record_frame
@@ -131,8 +132,9 @@ class _Census:
             for name in _WEIGHT_FORMULAS
         }
         if self_.followup_spline:
-            self.followup_knots = _compute_spline_knots(
-                values["outcome"]["followup"][0], df=self_.followup_spline_df
+            # the package's baked spline term, from the batch value counts
+            self.followup_knots = _bake(
+                _followup_spline_term(self_.followup_spline_df), values["outcome"]
             )
             self.covariates = _apply_spline_formula(
                 self_.covariates, self_.indicator_squared, self.followup_knots

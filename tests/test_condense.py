@@ -1,4 +1,6 @@
 import copy
+import gc
+import re
 
 import numpy as np
 import patsy
@@ -139,7 +141,13 @@ def test_census_reproduces_the_package_formulas(tmp_path):
             rtol=1e-12,
             atol=1e-12,
         )
-    assert census.followup_knots == s._followup_spline_knots
+    followup = {"followup": s.DT["followup"].to_numpy()}
+    np.testing.assert_allclose(
+        patsy.dmatrix(census.followup_knots, followup),
+        patsy.dmatrix(s._followup_spline_knots, followup),
+        rtol=1e-12,
+        atol=1e-12,
+    )
     frame = _outcome_frame(s, s)
     block = _Block(
         [_Model("outcome", "outcome", census.covariates)],
@@ -148,7 +156,15 @@ def test_census_reproduces_the_package_formulas(tmp_path):
         "ID",
         "weight",
     )
-    assert block.columns == list(s.outcome_model[0]["outcome"].model.exog_names)
+
+    # the names carry the centring constants, equal to rounding (checked above)
+    def names(columns):
+        return [
+            re.sub(r"constraints=\[\[[^]]*\]\]", "constraints", c) for c in columns
+        ]
+
+    exog_names = s.outcome_model[0]["outcome"].model.exog_names
+    assert names(block.columns) == names(exog_names)
 
 
 @pytest.mark.parametrize(
@@ -824,6 +840,7 @@ def test_condense_option_runs_the_pipeline():
     assert s.hazard_ratio["LCI"][0] < s.hazard_ratio["UCI"][0]
     out = s.collect()
     assert out.km_data is s.km_data
+    assert set(out.diagnostic_tables) == set(full.diagnostics)
     assert out.risk_difference.height > 0
     # weight models and weight statistics are reported as by the package
     assert len(out.numerator_models) == len(out.denominator_models) == 2
@@ -873,6 +890,9 @@ def test_trial_selection(tmp_path):
         return DT.filter(pl.col("tx_init_bas") == treated).select(trials).n_unique()
 
     assert count(kept, 1) == count(everyone, 1)
+    # diagnostics count the kept trials
+    diag = _expanded(a, data).diagnostics["nonunique_followup"]
+    assert diag["len"].sum() == kept.height
     assert abs(count(kept, 0) / count(everyone, 0) - 0.5) < 0.05
     # the same trials are kept whatever the batches
     batches = pl.concat([_expanded(a, r).DT for r in store.batches(40)])
@@ -928,3 +948,196 @@ def test_three_treatment_levels_match_the_package(tmp_path, opts):
         bse = _weight_model(s, name).bse.to_numpy().T.ravel()
         assert np.abs((wf.params[ref.index] - ref) / bse).max() < 1e-4
     assert _z(fit, s.outcome_model[0]["outcome"]) < 0.02
+
+
+def _no_one_eligible_in_the_first_batch(data, n):
+    first = data["ID"].unique().sort()[:n].implode()
+    return data.with_columns(
+        pl.when(pl.col("ID").is_in(first))
+        .then(0)
+        .otherwise(pl.col("eligible"))
+        .alias("eligible")
+    )
+
+
+@pytest.mark.parametrize(
+    "method, opts",
+    [
+        ("censoring", dict(PRE, weight_p99=True)),
+        (
+            "censoring",
+            dict(PRE, end_of_fup=True, end_of_fup_time=12, end_of_fup_window=3),
+        ),
+    ],
+)
+def test_batches_without_eligible_people_are_skipped(tmp_path, method, opts):
+    data = _no_one_eligible_in_the_first_batch(load_data("SEQdata"), 50)
+    store = RecordStore.write(data, "ID", tmp_path)
+    c = condense(
+        _analysis(method, data, **opts), store, gold_fraction=0.5, people_per_batch=50
+    )
+    assert c.weight_stats["weight_max"][0] >= c.weight_stats["weight_min"][0] > 0
+    if c.outcome is not None:
+        assert c.outcome.ids.min() > 50
+        # the fit is the package's on the same data
+        ref = _fit(method, data, **opts).outcome_model[0]["outcome"]
+        assert _z(c.fit(), ref) < 0.1
+
+
+def test_ci_settings_changed_after_fit_are_used():
+    data = load_data("SEQdata").with_columns(pl.col("ID") + 1000)
+    s = _analysis("ITT", data, condense=True, bootstrap_nboot=4, km_curves=True)
+    s.expand()
+    s.bootstrap()
+    s.fit()
+
+    def widths():
+        s.survival()
+        s.hazard()
+        risk = s.km_data.filter(pl.col("estimate") == "risk")
+        return (risk["UCI"] - risk["LCI"]).max(), (
+            s.hazard_ratio["UCI"][0] - s.hazard_ratio["LCI"][0]
+        )
+
+    wide = widths()
+    s.bootstrap_CI = 0.5
+    narrow = widths()
+    assert narrow[0] < wide[0] and narrow[1] < wide[1]
+
+
+@pytest.mark.parametrize("offload", [False, True])
+def test_condensed_record_store_is_removed_with_the_analysis(tmp_path, offload):
+    s = _analysis(
+        "ITT",
+        load_data("SEQdata"),
+        condense=True,
+        offload=offload,
+        offload_dir=str(tmp_path / "models"),
+    )
+    s.expand()
+    path = s._store.path
+    assert path.exists()
+    # offloaded analyses keep their files under offload_dir
+    assert path.is_relative_to(tmp_path) == offload
+    del s
+    gc.collect()
+    assert not path.exists()
+
+
+def test_too_many_models_for_one_block_is_an_error():
+    frame = pl.DataFrame({"ID": [1, 2], "y": [0, 1], "x": [0.5, 1.5]}).to_pandas()
+    models = [_Model(f"m{i}", "y", "x") for i in range(64)]
+    with pytest.raises(ValueError, match="63"):
+        _Block(models, frame, {}, "ID")
+
+
+def test_weighted_cox_from_counts_is_the_weighted_cox_fit():
+    import pandas as pd
+    from lifelines import CoxPHFitter
+
+    from pySEQTarget.condense._estimands import _cox
+
+    rng = np.random.default_rng(1)
+    n = 4000
+    arm = rng.integers(0, 2, n)
+    w = np.where(rng.random(n) < 0.5, 2.0, 1.0)
+    time = np.minimum(rng.geometric(0.05 * np.exp(0.4 * arm)) - 1, 30)
+    event = (time < 30) & (rng.random(n) < 0.9)
+    events, counts, kept = np.zeros((3, 2, 31))
+    np.add.at(events, (arm[event], time[event]), w[event])
+    np.add.at(counts, (arm[event], time[event]), 1)
+    np.add.at(kept, (arm, time), w)
+    at_risk = kept[:, ::-1].cumsum(1)[:, ::-1]
+
+    frame = pd.DataFrame({"t": time, "e": event.astype(int), "arm": arm, "w": w})
+    cph = CoxPHFitter().fit(frame, "t", "e", weights_col="w")
+    beta = _cox(events, at_risk, [0, 1], counts)
+    assert abs(beta - cph.params_.iloc[0]) < 1e-6
+
+
+def test_random_selection_standardizes_over_every_trial(tmp_path):
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    # equal width IDs avoid the package trial key collision
+    data = load_data("SEQdata").with_columns(pl.col("ID") + 1000)
+    opts = dict(selection_random=True, selection_sample=0.3, km_curves=True)
+    s = _analysis("ITT", data, **opts)
+    s.expand()
+    s.fit()
+    store = RecordStore.write(data, "ID", tmp_path)
+    a = _analysis("ITT", data, **opts)
+    c = condense(a, store, gold_fraction=0.2)
+    # the package standardizing over the trials the condensed run kept
+    s.DT = _expanded(a, data).DT
+    s.survival()
+
+    params = np.asarray(s.outcome_model[0]["outcome"].params)
+    main = {"outcome": SimpleNamespace(params=pd.Series(params))}
+    risk = c.survival(fits=main)["km_data"].filter(pl.col("estimate") == "risk")
+    ref = s.km_data.filter(pl.col("estimate") == "risk")
+    both = ref.join(risk, on=["followup", "tx_init"], suffix="_c")
+    assert both.height == ref.height
+    np.testing.assert_allclose(both["pred"], both["pred_c"], rtol=0, atol=1e-10)
+    hr = c.hazard(fits=main)["Hazard ratio"][0]
+    assert np.isfinite(hr) and hr > 0
+
+
+def _continuous_outcome(data):
+    rng = np.random.default_rng(42)
+    return data.with_columns(
+        (
+            10
+            + 2 * pl.col("tx_init")
+            + pl.col("N")
+            + pl.Series(rng.standard_normal(data.height))
+        ).alias("outcome")
+    )
+
+
+EOF_OPTS = dict(end_of_fup=True, end_of_fup_time=12, end_of_fup_window=3)
+
+# value columns of the diagnostic tables
+_COUNT_COLUMNS = {
+    "len",
+    "N",
+    "Mean",
+    "SD",
+    "Eligible",
+    "At k",
+    "In window",
+    "Excluded (outside window)",
+    "Excluded (no measurement)",
+}
+
+
+@pytest.mark.parametrize(
+    "dataset, method, opts",
+    [
+        ("SEQdata", "censoring", PRE),
+        ("SEQdata_LTFU", "ITT", dict(compevent_colname="LTFU")),
+        ("SEQdata", "censoring", dict(PRE, **EOF_OPTS)),
+        ("continuous", "ITT", dict(EOF_OPTS, end_of_fup_type="continuous")),
+    ],
+)
+def test_diagnostics_are_the_package_tables(tmp_path, dataset, method, opts):
+    if dataset == "continuous":
+        data = _continuous_outcome(load_data("SEQdata"))
+    else:
+        data = load_data(dataset).filter(pl.col("ID") <= 300)
+    s = _fit(method, data, **opts)
+    store = RecordStore.write(data, "ID", tmp_path)
+    # small batches so every table is summed over several
+    c = condense(
+        _analysis(method, data, **opts), store, gold_fraction=0.5, people_per_batch=40
+    )
+    assert set(c.diagnostics) == set(s.diagnostics)
+    for name, want in s.diagnostics.items():
+        by = [col for col in want.columns if col not in _COUNT_COLUMNS]
+        _same_tables(want.sort(by), c.diagnostics[name].sort(by), 1e-10)
+
+
+def test_condense_with_expand_only_is_an_error():
+    with pytest.raises(ValueError, match="expand_only"):
+        _analysis("ITT", load_data("SEQdata"), condense=True, expand_only=True)

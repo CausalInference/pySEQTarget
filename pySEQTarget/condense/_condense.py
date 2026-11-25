@@ -9,7 +9,7 @@ import scipy.sparse as sp
 from ._census import _Census
 from ._correct import (Exact, _block_diag, _condensed_side, _correct,
                        _exact_side, _ExactRows, _fit_of)
-from ._eof import Eof, _eof_batch
+from ._eof import Eof, _eof_batch, _eof_diagnostics
 from ._estimands import _baseline_rows, _hazard, _replicates, _survival
 from ._fit import _class_names, _newton
 from ._frame import (_bind_weights, _expanded, _outcome_frame, _record_frame,
@@ -89,6 +89,20 @@ class _BlockSetup:
         betas = [embed(j, self.fits[j][0][0][None])[0] for j in models]
         W = _whitener(Xg, wg, betas, len(np.unique(gold.ids[on])))
         return _Atom(cols, W, train, test)
+
+
+def _summed_diagnostics(tables, by=None):
+    """
+    The package's diagnostic tables over every batch. Batches hold whole people,
+    so the per-person counts add up across them as the row counts do.
+    """
+    out = {}
+    for name in tables[0] if tables else []:
+        parts = [t[name] for t in tables]
+        keys = by.get(name) if by else None
+        keys = keys or [col for col in parts[0].columns if col != "len"]
+        out[name] = pl.concat(parts).group_by(keys).agg(pl.all().sum()).sort(keys)
+    return out
 
 
 def _model_name(model, subgroup=None):
@@ -297,6 +311,7 @@ class Condensed:
     :ivar gold: Exact rows of the gold subsample
     :ivar baseline: First row of every trial
     :ivar weight_stats: Weight statistics over every expanded row
+    :ivar diagnostics: The package's diagnostic tables over every batch
     """
 
     def __init__(
@@ -436,13 +451,14 @@ class Condensed:
         return fit
 
     def end_of_followup(
-        self, nboot=0, sample=1.0, seed=None, CI=None, CI_method=None, resamples=None
+        self, nboot=0, sample=None, seed=None, CI=None, CI_method=None, resamples=None
     ):
         """
         Assembles the end-of-follow-up estimates (``end_of_fup=True``)
 
         :param nboot: Number of bootstrap resamples
-        :param sample: Share of the cohort drawn per resample
+        :param sample: Share of the cohort drawn per resample, default the
+            analysis's ``bootstrap_sample``
         :param seed: RNG seed
         :param CI: Confidence interval level
         :param CI_method: Confidence interval method ['se' or 'percentile']
@@ -453,6 +469,7 @@ class Condensed:
         a = self.analysis
         if getattr(self, "eof", None) is None:
             raise ValueError("Not an end-of-follow-up analysis (end_of_fup=False)")
+        sample = a.bootstrap_sample if sample is None else sample
         if resamples is None:
             rng = np.random.default_rng(a.seed if seed is None else seed)
             size = int(sample * len(self.cohort))
@@ -474,19 +491,28 @@ class Condensed:
             [estimate()] + [estimate(counts) for counts in resamples],
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
+            sample,
         )
 
-    def bootstrap(self, nboot, sample=1.0, seed=None):
+    def bootstrap(self, nboot, sample=None, seed=None):
         """
         Draws bootstrap resamples and fits every outcome model on each
 
         :param nboot: Number of bootstrap resamples
-        :param sample: Share of the cohort drawn per resample
+        :param sample: Share of the cohort drawn per resample, default the
+            analysis's ``bootstrap_sample``
         :param seed: RNG seed
         """
         seed = self.analysis.seed if seed is None else seed
-        self.replicates = _replicates(self, nboot, sample, seed)
+        if sample is not None:
+            self.bootstrap_sample = sample
+        self.replicates = _replicates(self, nboot, self._sample(), seed)
         return self.replicates
+
+    def _sample(self):
+        # Share of the cohort each replicate drew; their spread is rescaled
+        # to the full cohort as the package does (m-out-of-n bootstrap)
+        return getattr(self, "bootstrap_sample", self.analysis.bootstrap_sample)
 
     def _main(self, fits):
         fits = fits or {}
@@ -514,6 +540,7 @@ class Condensed:
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
             a.risk_times if risk_times is None else risk_times,
+            self._sample(),
         )
 
     def hazard(self, fits=None, CI=None, CI_method=None, seed=None):
@@ -534,6 +561,7 @@ class Condensed:
             a.bootstrap_CI if CI is None else CI,
             a.bootstrap_CI_method if CI_method is None else CI_method,
             seed,
+            self._sample(),
         )
 
     @staticmethod
@@ -683,7 +711,8 @@ def condense(
             b = _recorded(a, batch) if self.weight_preexpansion else _expanded(a, batch)
             rows = record_block.matrices(_record_frame(a, b))
             timings["record"] += time.perf_counter() - t
-            parts.append(_condense_batch(setup, rows, k_record, timings))
+            if len(rows.ids):
+                parts.append(_condense_batch(setup, rows, k_record, timings))
         record = CondensedBlock(record_block, parts, self.id_col)
         if center == "record":
             fits = {name: record.fit(name) for name in record.models}
@@ -695,6 +724,8 @@ def condense(
             bounds = _Tally()
             for batch in store.batches(people_per_batch):
                 b = _expanded(a, batch)
+                if b.DT.is_empty():
+                    continue
                 _bind_weights(a, b)
                 bounds.add(b.DT["weight"].to_numpy())
             a.weight_stats = bounds.frame()
@@ -704,11 +735,15 @@ def condense(
 
     if self.end_of_fup:
         # no outcome model so measurements are kept exactly
-        parts, s_cols = [], []
+        parts, s_cols, tables = [], [], []
         for batch in store.batches(people_per_batch):
             t = time.perf_counter()
             b = _expanded(a, batch)
             timings["expand"] += time.perf_counter() - t
+            if b.DT.is_empty():
+                # no one in the batch is eligible
+                continue
+            tables.append(b.diagnostics | _eof_diagnostics(a, b, census.last_period))
             if self.weighted:
                 t = time.perf_counter()
                 frame = _record_frame(a, b)
@@ -720,6 +755,10 @@ def condense(
         c = Condensed(None, record, theta, theta0, a, census, ids, timings)
         c.eof = Eof(a, parts, s_cols)
         c.weight_stats = tally.frame() if self.weighted else None
+        by = dict.fromkeys(("unique_eof", "nonunique_eof"), c.eof.by)
+        c.diagnostics = _summed_diagnostics(tables, by)
+        if self.end_of_fup_type == "continuous":
+            c.diagnostics["eof_summary"] = c.eof.summary()
         return c
 
     rhs = census.covariates
@@ -749,12 +788,16 @@ def condense(
     setup = _BlockSetup(
         outcome_block, outcome_block.matrices(gold_frame), *settings, self.weighted
     )
-    parts, baseline = [], []
+    parts, baseline, tables = [], [], []
     for batch in store.batches(people_per_batch):
         t = time.perf_counter()
         b = _expanded(a, batch)
-        baseline.append(_baseline_rows(a, b))
         timings["expand"] += time.perf_counter() - t
+        if b.DT.is_empty():
+            # no one in the batch is eligible
+            continue
+        baseline.append(_baseline_rows(a, b))
+        tables.append(b.diagnostics)
 
         S = None
         if self.weighted:
@@ -771,7 +814,8 @@ def condense(
         if self.weighted:
             S = frame[s_cols].to_numpy(float)[rows.keep]
         timings["expand"] += time.perf_counter() - t
-        parts.append(_condense_batch(setup, rows, k, timings, S))
+        if len(rows.ids):
+            parts.append(_condense_batch(setup, rows, k, timings, S))
 
     c = Condensed(
         CondensedBlock(outcome_block, parts, self.id_col),
@@ -784,6 +828,7 @@ def condense(
         timings,
     )
     c.baseline = pl.concat(baseline)
+    c.diagnostics = _summed_diagnostics(tables)
     c.weight_stats = tally.frame() if self.weighted else None
     c.gold = c.exact(store, gold_ids, people_per_batch)
     return c

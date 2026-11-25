@@ -48,6 +48,7 @@ def _condensed_fit(self):
 
     c = self.condensed = condense(self, self._store)
     self.weight_stats = c.weight_stats
+    self.diagnostics = c.diagnostics
     weights = c.fit_weights()
     for name in ("cense_numerator", "cense_denominator"):
         if name in weights:
@@ -197,7 +198,13 @@ class SEQuential:
             # expansion happens in batches at fit
             from .condense import RecordStore
 
-            self._store = RecordStore.write(self.data, self.id_col, tempfile.mkdtemp())
+            # removed when the analysis no longer holds it
+            path = tempfile.mkdtemp(
+                prefix="seq_record_", dir=self.offload_dir if self.offload else None
+            )
+            self._store = RecordStore.write(
+                self.data, self.id_col, path, temporary=True
+            )
             self.DT = None
             self._expansion_time = _format_time(start, time.perf_counter())
             return
@@ -512,7 +519,11 @@ class SEQuential:
         start = time.perf_counter()
 
         if self.condense:
-            out = self.condensed.survival()
+            out = self.condensed.survival(
+                CI=self.bootstrap_CI,
+                CI_method=self.bootstrap_CI_method,
+                risk_times=self.risk_times,
+            )
             self.km_data = out.pop("km_data")
             self.risk_estimates = out
             self._survival_time = _format_time(start, time.perf_counter())
@@ -553,7 +564,10 @@ class SEQuential:
 
         if self.condense:
             eof = self.condensed.end_of_followup(
-                self.bootstrap_nboot, self.bootstrap_sample
+                self.bootstrap_nboot,
+                self.bootstrap_sample,
+                CI=self.bootstrap_CI,
+                CI_method=self.bootstrap_CI_method,
             )
         else:
             eof = _create_endoffup(self)
@@ -588,7 +602,9 @@ class SEQuential:
                 "Outcome model not found. Please run the 'fit' method before calculating hazard ratio."
             )
         if self.condense:
-            self.hazard_ratio = self.condensed.hazard()
+            self.hazard_ratio = self.condensed.hazard(
+                CI=self.bootstrap_CI, CI_method=self.bootstrap_CI_method
+            )
         else:
             self.hazard_ratio = _calculate_hazard(self)
 

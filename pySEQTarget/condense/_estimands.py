@@ -8,6 +8,8 @@ from scipy.stats import norm
 
 from ..analysis._outcome_fit import _cast_categories
 from ..analysis._risk_estimates import _risk_estimates
+from ..expansion._selection import _selection_weight
+from ..helpers._bootstrap import _rescale_boot
 
 # max hazard cells held per chunk
 _CHUNK_CELLS = 2e7
@@ -75,6 +77,15 @@ def _stacked(names, main, replicates):
     }
 
 
+def _selection_weights(a, chunk):
+    # each kept trial stands for the trials selection_random dropped, as in the
+    # package; taken from the observed baseline treatment before the grid sets it
+    sel = _selection_weight(a)
+    if sel is None:
+        return np.ones(chunk.height)
+    return chunk.select(sel).to_series().to_numpy()
+
+
 def _hazards(c, baseline, names, coefficients, dose):
     a = copy.copy(c.analysis)
     # stop _cast_categories recording chunk levels
@@ -86,6 +97,7 @@ def _hazards(c, baseline, names, coefficients, dose):
     for start in range(0, baseline.height, step):
         chunk = baseline.slice(start, step)
         ids = chunk[a.id_col].to_numpy()
+        w = _selection_weights(a, chunk)
         for level in a.treatment_level:
             frame = block.prepare(
                 _cast_categories(a, _grid(a, chunk, level, dose).to_pandas())
@@ -103,31 +115,33 @@ def _hazards(c, baseline, names, coefficients, dose):
                         )
                     designs[rhs] = X
                 out[model] = expit(designs[rhs] @ B.T).reshape(len(chunk), F, R)
-            yield ids, level, out
+            yield ids, w, level, out
 
 
 def _curves(c, baseline, names, coefficients):
     dose = c.analysis.method == "dose-response"
     sums, n = {}, 0
-    for ids, level, h in _hazards(c, baseline, names, coefficients, dose):
+    for ids, w, level, h in _hazards(c, baseline, names, coefficients, dose):
         ho = h["outcome"]
         acc = sums.setdefault(level, {})
-        acc["surv"] = acc.get("surv", 0) + np.cumprod(1 - ho, axis=1).sum(0)
+        surv = np.einsum("i,ifr->fr", w, np.cumprod(1 - ho, axis=1))
+        acc["surv"] = acc.get("surv", 0) + surv
         if "compevent" in h:
             hc = h["compevent"]
             cce = np.cumprod((1 - ho) * (1 - hc), axis=1)
             inc = np.cumsum(ho * (1 - hc) * cce, axis=1)
-            acc["inc"] = acc.get("inc", 0) + inc.sum(0)
+            acc["inc"] = acc.get("inc", 0) + np.einsum("i,ifr->fr", w, inc)
         if level == c.analysis.treatment_level[0]:
-            n += len(ids)
+            n += w.sum()
     return {
         level: {key: total / n for key, total in acc.items()}
         for level, acc in sums.items()
     }
 
 
-def _interval(point, boot, level, method, lower=True):
+def _interval(point, boot, level, method, sample):
     alpha = 1 - level
+    boot = _rescale_boot(boot, point[:, None], sample)
     se = boot.std(axis=1, ddof=1)
     if method == "se":
         z = norm.ppf(1 - alpha / 2)
@@ -137,7 +151,7 @@ def _interval(point, boot, level, method, lower=True):
     return se, np.array(lo), np.array(hi)
 
 
-def _survival(c, main, replicates, CI, CI_method, risk_times):
+def _survival(c, main, replicates, CI, CI_method, risk_times, sample):
     a = c.analysis
     nboot = len(replicates)
     followup = np.arange(a.followup_max + 2)
@@ -147,7 +161,7 @@ def _survival(c, main, replicates, CI, CI_method, risk_times):
         values = np.vstack([np.full((1, values.shape[1]), start), values])
         cols = {"followup": followup, "pred": values[:, 0]}
         if nboot:
-            se, lo, hi = _interval(values[:, 0], values[:, 1:], CI, CI_method)
+            se, lo, hi = _interval(values[:, 0], values[:, 1:], CI, CI_method, sample)
             cols |= {"SE": se, "LCI": lo, "UCI": hi}
         out = pl.DataFrame(cols).with_columns(
             pl.lit(level).cast(pl.Int32).alias(a.treatment_col),
@@ -192,6 +206,7 @@ def _survival(c, main, replicates, CI, CI_method, risk_times):
         bootstrap_nboot=nboot,
         bootstrap_CI=CI,
         bootstrap_CI_method=CI_method,
+        bootstrap_sample=sample,
         treatment_level=a.treatment_level,
         treatment_col=a.treatment_col,
     )
@@ -201,14 +216,19 @@ def _survival(c, main, replicates, CI, CI_method, risk_times):
     return {"km_data": km, **_risk_estimates(stub)}
 
 
-def _cox(events, at_risk, values, tol=1e-12, max_iter=50):
-    # cox fit on the arm value as the package codes it
+def _cox(events, at_risk, values, counts=None, tol=1e-12, max_iter=50):
+    # cox fit on the arm value as the package codes it; events and at_risk may
+    # be weighted, with counts the number of events, for lifelines' weighted
+    # Efron ties
+    counts = events if counts is None else counts
     times = np.flatnonzero(events.sum(0) > 0)
     if len(times) == 0 or (events.sum(1) > 0).sum() < 2:
         return float("nan")
     # one term per event with its rank in the tie
-    d = events[:, times].sum(0).astype(int)
+    d = np.rint(counts[:, times].sum(0)).astype(int)
     t = np.repeat(np.arange(len(times)), d)
+    # each term carries the tie's mean event weight
+    mean_w = np.repeat(events[:, times].sum(0) / d, d)
     frac = (np.arange(d.sum()) - np.repeat(np.cumsum(d) - d, d)) / np.repeat(d, d)
     # arms by terms still at risk
     A = at_risk[:, times][:, t] - frac * events[:, times][:, t]
@@ -218,8 +238,8 @@ def _cox(events, at_risk, values, tol=1e-12, max_iter=50):
     for _ in range(max_iter):
         R = np.exp(beta * x) * A
         s0, s1, s2 = R.sum(0), (x * R).sum(0), (x**2 * R).sum(0)
-        g = total - np.sum(s1 / s0)
-        H = np.sum(s2 / s0 - (s1 / s0) ** 2)
+        g = total - np.sum(mean_w * s1 / s0)
+        H = np.sum(mean_w * (s2 / s0 - (s1 / s0) ** 2))
         step = g / H
         beta += step
         if abs(step) < tol:
@@ -243,7 +263,7 @@ def _simulate(h, hc, rng):
     return time, status
 
 
-def _hazard(c, main, replicates, CI, CI_method, seed):
+def _hazard(c, main, replicates, CI, CI_method, seed, sample):
     a = c.analysis
     if a.method == "dose-response":
         raise NotImplementedError(
@@ -252,7 +272,7 @@ def _hazard(c, main, replicates, CI, CI_method, seed):
     out = []
     for subgroup, baseline, names in _groups(c):
         row = _hazard_within(
-            c, baseline, names, main, replicates, CI, CI_method, seed
+            c, baseline, names, main, replicates, CI, CI_method, seed, sample
         )
         if subgroup is not None:
             row = row.with_columns(pl.lit(subgroup).alias(a.subgroup_colname))
@@ -260,7 +280,7 @@ def _hazard(c, main, replicates, CI, CI_method, seed):
     return pl.concat(out, how="diagonal")
 
 
-def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed):
+def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed, sample):
     a = c.analysis
     levels = list(a.treatment_level)
     coefficients = _stacked(names, main, replicates)
@@ -268,9 +288,10 @@ def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed):
     F = a.followup_max + 1
     seed = a.seed if seed is None else seed
     rngs = [np.random.default_rng([seed, r]) for r in range(R)]
-    # replicate arm status time
+    # replicate arm status time, weighted and counted
     hist = np.zeros((R, len(levels), 3, F))
-    for ids, level, h in _hazards(c, baseline, names, coefficients, dose=False):
+    count = np.zeros((R, len(levels), 3, F))
+    for ids, w, level, h in _hazards(c, baseline, names, coefficients, dose=False):
         arm = levels.index(level)
         for r in range(R):
             if r == 0:
@@ -285,16 +306,18 @@ def _hazard_within(c, baseline, names, main, replicates, CI, CI_method, seed):
             ho = h["outcome"][copies, :, r]
             hc = h["compevent"][copies, :, r] if "compevent" in h else None
             time, status = _simulate(ho, hc, rngs[r])
-            np.add.at(hist[r, arm], (status, time), 1)
+            np.add.at(hist[r, arm], (status, time), w[copies])
+            np.add.at(count[r, arm], (status, time), 1)
 
     log_hr = []
     for r in range(R):
         kept = hist[r, :, :2].sum(1)
         at_risk = kept[:, ::-1].cumsum(1)[:, ::-1]
-        log_hr.append(_cox(hist[r, :, 1], at_risk, levels))
+        log_hr.append(_cox(hist[r, :, 1], at_risk, levels, count[r, :, 1]))
     full, boot = log_hr[0], np.array([x for x in log_hr[1:] if np.isfinite(x)])
     out = {"Hazard ratio": [float(np.exp(full))]}
     if len(boot) and np.isfinite(full):
+        boot = _rescale_boot(boot, full, sample)
         if CI_method == "se":
             z = norm.ppf(1 - (1 - CI) / 2)
             se = np.std(boot)
