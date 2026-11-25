@@ -1025,3 +1025,56 @@ def test_too_many_models_for_one_block_is_an_error():
     models = [_Model(f"m{i}", "y", "x") for i in range(64)]
     with pytest.raises(ValueError, match="63"):
         _Block(models, frame, {}, "ID")
+
+
+def test_weighted_cox_from_counts_is_the_weighted_cox_fit():
+    import pandas as pd
+    from lifelines import CoxPHFitter
+
+    from pySEQTarget.condense._estimands import _cox
+
+    rng = np.random.default_rng(1)
+    n = 4000
+    arm = rng.integers(0, 2, n)
+    w = np.where(rng.random(n) < 0.5, 2.0, 1.0)
+    time = np.minimum(rng.geometric(0.05 * np.exp(0.4 * arm)) - 1, 30)
+    event = (time < 30) & (rng.random(n) < 0.9)
+    events, counts, kept = np.zeros((3, 2, 31))
+    np.add.at(events, (arm[event], time[event]), w[event])
+    np.add.at(counts, (arm[event], time[event]), 1)
+    np.add.at(kept, (arm, time), w)
+    at_risk = kept[:, ::-1].cumsum(1)[:, ::-1]
+
+    frame = pd.DataFrame({"t": time, "e": event.astype(int), "arm": arm, "w": w})
+    cph = CoxPHFitter().fit(frame, "t", "e", weights_col="w")
+    beta = _cox(events, at_risk, [0, 1], counts)
+    assert abs(beta - cph.params_.iloc[0]) < 1e-6
+
+
+def test_random_selection_standardizes_over_every_trial(tmp_path):
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    # equal width IDs avoid the package trial key collision
+    data = load_data("SEQdata").with_columns(pl.col("ID") + 1000)
+    opts = dict(selection_random=True, selection_sample=0.3, km_curves=True)
+    s = _analysis("ITT", data, **opts)
+    s.expand()
+    s.fit()
+    store = RecordStore.write(data, "ID", tmp_path)
+    a = _analysis("ITT", data, **opts)
+    c = condense(a, store, gold_fraction=0.2)
+    # the package standardizing over the trials the condensed run kept
+    s.DT = _expanded(a, data).DT
+    s.survival()
+
+    params = np.asarray(s.outcome_model[0]["outcome"].params)
+    main = {"outcome": SimpleNamespace(params=pd.Series(params))}
+    risk = c.survival(fits=main)["km_data"].filter(pl.col("estimate") == "risk")
+    ref = s.km_data.filter(pl.col("estimate") == "risk")
+    both = ref.join(risk, on=["followup", "tx_init"], suffix="_c")
+    assert both.height == ref.height
+    np.testing.assert_allclose(both["pred"], both["pred_c"], rtol=0, atol=1e-10)
+    hr = c.hazard(fits=main)["Hazard ratio"][0]
+    assert np.isfinite(hr) and hr > 0
