@@ -9,7 +9,7 @@ import scipy.sparse as sp
 from ._census import _Census
 from ._correct import (Exact, _block_diag, _condensed_side, _correct,
                        _exact_side, _ExactRows, _fit_of)
-from ._eof import Eof, _eof_batch
+from ._eof import Eof, _eof_batch, _eof_diagnostics
 from ._estimands import _baseline_rows, _hazard, _replicates, _survival
 from ._fit import _class_names, _newton
 from ._frame import (_bind_weights, _expanded, _outcome_frame, _record_frame,
@@ -89,6 +89,20 @@ class _BlockSetup:
         betas = [embed(j, self.fits[j][0][0][None])[0] for j in models]
         W = _whitener(Xg, wg, betas, len(np.unique(gold.ids[on])))
         return _Atom(cols, W, train, test)
+
+
+def _summed_diagnostics(tables, by=None):
+    """
+    The package's diagnostic tables over every batch. Batches hold whole people,
+    so the per-person counts add up across them as the row counts do.
+    """
+    out = {}
+    for name in tables[0] if tables else []:
+        parts = [t[name] for t in tables]
+        keys = by.get(name) if by else None
+        keys = keys or [col for col in parts[0].columns if col != "len"]
+        out[name] = pl.concat(parts).group_by(keys).agg(pl.all().sum()).sort(keys)
+    return out
 
 
 def _model_name(model, subgroup=None):
@@ -297,6 +311,7 @@ class Condensed:
     :ivar gold: Exact rows of the gold subsample
     :ivar baseline: First row of every trial
     :ivar weight_stats: Weight statistics over every expanded row
+    :ivar diagnostics: The package's diagnostic tables over every batch
     """
 
     def __init__(
@@ -720,7 +735,7 @@ def condense(
 
     if self.end_of_fup:
         # no outcome model so measurements are kept exactly
-        parts, s_cols = [], []
+        parts, s_cols, tables = [], [], []
         for batch in store.batches(people_per_batch):
             t = time.perf_counter()
             b = _expanded(a, batch)
@@ -728,6 +743,7 @@ def condense(
             if b.DT.is_empty():
                 # no one in the batch is eligible
                 continue
+            tables.append(b.diagnostics | _eof_diagnostics(a, b, census.last_period))
             if self.weighted:
                 t = time.perf_counter()
                 frame = _record_frame(a, b)
@@ -739,6 +755,10 @@ def condense(
         c = Condensed(None, record, theta, theta0, a, census, ids, timings)
         c.eof = Eof(a, parts, s_cols)
         c.weight_stats = tally.frame() if self.weighted else None
+        by = dict.fromkeys(("unique_eof", "nonunique_eof"), c.eof.by)
+        c.diagnostics = _summed_diagnostics(tables, by)
+        if self.end_of_fup_type == "continuous":
+            c.diagnostics["eof_summary"] = c.eof.summary()
         return c
 
     rhs = census.covariates
@@ -768,7 +788,7 @@ def condense(
     setup = _BlockSetup(
         outcome_block, outcome_block.matrices(gold_frame), *settings, self.weighted
     )
-    parts, baseline = [], []
+    parts, baseline, tables = [], [], []
     for batch in store.batches(people_per_batch):
         t = time.perf_counter()
         b = _expanded(a, batch)
@@ -777,6 +797,7 @@ def condense(
             # no one in the batch is eligible
             continue
         baseline.append(_baseline_rows(a, b))
+        tables.append(b.diagnostics)
 
         S = None
         if self.weighted:
@@ -807,6 +828,7 @@ def condense(
         timings,
     )
     c.baseline = pl.concat(baseline)
+    c.diagnostics = _summed_diagnostics(tables)
     c.weight_stats = tally.frame() if self.weighted else None
     c.gold = c.exact(store, gold_ids, people_per_batch)
     return c

@@ -23,6 +23,12 @@ def _param_checker(self):
     ):
         raise ValueError("subgroup_colname must be included in fixed_cols.")
 
+    if self.condense and self.expand_only:
+        raise ValueError(
+            "condense and expand_only cannot be combined: condense never holds "
+            "the expanded data that expand_only returns"
+        )
+
     if self.followup_max is None:
         self.followup_max = self.data.select(self.time_col).to_series().max()
 

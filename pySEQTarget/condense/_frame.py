@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 
 from ..analysis._outcome_fit import _cast_categories
+from ..expansion._diagnostics import _diagnostics
 from ..helpers._fix_categories import _cast_fixed_categories
 from ..weighting import _weight_bind, _weight_predict, _weight_setup
 from ..weighting._weight_stats import _weight_bounds
@@ -39,6 +40,8 @@ def _expanded(self, record):
         b.DT = b.DT.filter(
             (pl.col(tx_bas) != self.treatment_level[0]) | (u < self.selection_sample)
         )
+        # counted over the kept trials, as the package does
+        _diagnostics(b)
     return b
 
 

@@ -3,13 +3,23 @@ from types import SimpleNamespace
 import numpy as np
 import polars as pl
 
-from ..analysis._endoffup import (_create_endoffup, _eof_frame,
-                                  _eof_group_cols, _eof_measure)
+from ..analysis._endoffup import (_create_endoffup, _eof_counts, _eof_frame,
+                                  _eof_group_cols, _eof_measure,
+                                  _eof_summary_of)
 from ..weighting._weight_stats import _weight_bounds
 
 
 def _eof_last_period(self, b):
     return _eof_frame(b)["period"].max()
+
+
+def _eof_diagnostics(self, b, last):
+    # the package's end-of-follow-up count tables for one batch
+    DT = _eof_frame(b)
+    return {
+        "unique_eof": _eof_counts(self, DT, True, last),
+        "nonunique_eof": _eof_counts(self, DT, False, last),
+    }
 
 
 def _eof_batch(self, b, s_cols, last):
@@ -71,6 +81,10 @@ class Eof:
             .agg(pl.all().sum())
             .sort(self.by)
         )
+
+    def summary(self):
+        # the package's eof_summary, from every measurement
+        return _eof_summary_of(self.measured, self.by)
 
     def estimate(self, delta=None, counts=None):
         """

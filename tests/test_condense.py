@@ -840,6 +840,7 @@ def test_condense_option_runs_the_pipeline():
     assert s.hazard_ratio["LCI"][0] < s.hazard_ratio["UCI"][0]
     out = s.collect()
     assert out.km_data is s.km_data
+    assert set(out.diagnostic_tables) == set(full.diagnostics)
     assert out.risk_difference.height > 0
     # weight models and weight statistics are reported as by the package
     assert len(out.numerator_models) == len(out.denominator_models) == 2
@@ -889,6 +890,9 @@ def test_trial_selection(tmp_path):
         return DT.filter(pl.col("tx_init_bas") == treated).select(trials).n_unique()
 
     assert count(kept, 1) == count(everyone, 1)
+    # diagnostics count the kept trials
+    diag = _expanded(a, data).diagnostics["nonunique_followup"]
+    assert diag["len"].sum() == kept.height
     assert abs(count(kept, 0) / count(everyone, 0) - 0.5) < 0.05
     # the same trials are kept whatever the batches
     batches = pl.concat([_expanded(a, r).DT for r in store.batches(40)])
@@ -1078,3 +1082,62 @@ def test_random_selection_standardizes_over_every_trial(tmp_path):
     np.testing.assert_allclose(both["pred"], both["pred_c"], rtol=0, atol=1e-10)
     hr = c.hazard(fits=main)["Hazard ratio"][0]
     assert np.isfinite(hr) and hr > 0
+
+
+def _continuous_outcome(data):
+    rng = np.random.default_rng(42)
+    return data.with_columns(
+        (
+            10
+            + 2 * pl.col("tx_init")
+            + pl.col("N")
+            + pl.Series(rng.standard_normal(data.height))
+        ).alias("outcome")
+    )
+
+
+EOF_OPTS = dict(end_of_fup=True, end_of_fup_time=12, end_of_fup_window=3)
+
+# value columns of the diagnostic tables
+_COUNT_COLUMNS = {
+    "len",
+    "N",
+    "Mean",
+    "SD",
+    "Eligible",
+    "At k",
+    "In window",
+    "Excluded (outside window)",
+    "Excluded (no measurement)",
+}
+
+
+@pytest.mark.parametrize(
+    "dataset, method, opts",
+    [
+        ("SEQdata", "censoring", PRE),
+        ("SEQdata_LTFU", "ITT", dict(compevent_colname="LTFU")),
+        ("SEQdata", "censoring", dict(PRE, **EOF_OPTS)),
+        ("continuous", "ITT", dict(EOF_OPTS, end_of_fup_type="continuous")),
+    ],
+)
+def test_diagnostics_are_the_package_tables(tmp_path, dataset, method, opts):
+    if dataset == "continuous":
+        data = _continuous_outcome(load_data("SEQdata"))
+    else:
+        data = load_data(dataset).filter(pl.col("ID") <= 300)
+    s = _fit(method, data, **opts)
+    store = RecordStore.write(data, "ID", tmp_path)
+    # small batches so every table is summed over several
+    c = condense(
+        _analysis(method, data, **opts), store, gold_fraction=0.5, people_per_batch=40
+    )
+    assert set(c.diagnostics) == set(s.diagnostics)
+    for name, want in s.diagnostics.items():
+        by = [col for col in want.columns if col not in _COUNT_COLUMNS]
+        _same_tables(want.sort(by), c.diagnostics[name].sort(by), 1e-10)
+
+
+def test_condense_with_expand_only_is_an_error():
+    with pytest.raises(ValueError, match="expand_only"):
+        _analysis("ITT", load_data("SEQdata"), condense=True, expand_only=True)

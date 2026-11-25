@@ -48,6 +48,7 @@ def _condensed_fit(self):
 
     c = self.condensed = condense(self, self._store)
     self.weight_stats = c.weight_stats
+    self.diagnostics = c.diagnostics
     weights = c.fit_weights()
     for name in ("cense_numerator", "cense_denominator"):
         if name in weights:
