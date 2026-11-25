@@ -1,4 +1,5 @@
 import copy
+import gc
 import re
 
 import numpy as np
@@ -943,3 +944,84 @@ def test_three_treatment_levels_match_the_package(tmp_path, opts):
         bse = _weight_model(s, name).bse.to_numpy().T.ravel()
         assert np.abs((wf.params[ref.index] - ref) / bse).max() < 1e-4
     assert _z(fit, s.outcome_model[0]["outcome"]) < 0.02
+
+
+def _no_one_eligible_in_the_first_batch(data, n):
+    first = data["ID"].unique().sort()[:n].implode()
+    return data.with_columns(
+        pl.when(pl.col("ID").is_in(first))
+        .then(0)
+        .otherwise(pl.col("eligible"))
+        .alias("eligible")
+    )
+
+
+@pytest.mark.parametrize(
+    "method, opts",
+    [
+        ("censoring", dict(PRE, weight_p99=True)),
+        (
+            "censoring",
+            dict(PRE, end_of_fup=True, end_of_fup_time=12, end_of_fup_window=3),
+        ),
+    ],
+)
+def test_batches_without_eligible_people_are_skipped(tmp_path, method, opts):
+    data = _no_one_eligible_in_the_first_batch(load_data("SEQdata"), 50)
+    store = RecordStore.write(data, "ID", tmp_path)
+    c = condense(
+        _analysis(method, data, **opts), store, gold_fraction=0.5, people_per_batch=50
+    )
+    assert c.weight_stats["weight_max"][0] >= c.weight_stats["weight_min"][0] > 0
+    if c.outcome is not None:
+        assert c.outcome.ids.min() > 50
+        # the fit is the package's on the same data
+        ref = _fit(method, data, **opts).outcome_model[0]["outcome"]
+        assert _z(c.fit(), ref) < 0.1
+
+
+def test_ci_settings_changed_after_fit_are_used():
+    data = load_data("SEQdata").with_columns(pl.col("ID") + 1000)
+    s = _analysis("ITT", data, condense=True, bootstrap_nboot=4, km_curves=True)
+    s.expand()
+    s.bootstrap()
+    s.fit()
+
+    def widths():
+        s.survival()
+        s.hazard()
+        risk = s.km_data.filter(pl.col("estimate") == "risk")
+        return (risk["UCI"] - risk["LCI"]).max(), (
+            s.hazard_ratio["UCI"][0] - s.hazard_ratio["LCI"][0]
+        )
+
+    wide = widths()
+    s.bootstrap_CI = 0.5
+    narrow = widths()
+    assert narrow[0] < wide[0] and narrow[1] < wide[1]
+
+
+@pytest.mark.parametrize("offload", [False, True])
+def test_condensed_record_store_is_removed_with_the_analysis(tmp_path, offload):
+    s = _analysis(
+        "ITT",
+        load_data("SEQdata"),
+        condense=True,
+        offload=offload,
+        offload_dir=str(tmp_path / "models"),
+    )
+    s.expand()
+    path = s._store.path
+    assert path.exists()
+    # offloaded analyses keep their files under offload_dir
+    assert path.is_relative_to(tmp_path) == offload
+    del s
+    gc.collect()
+    assert not path.exists()
+
+
+def test_too_many_models_for_one_block_is_an_error():
+    frame = pl.DataFrame({"ID": [1, 2], "y": [0, 1], "x": [0.5, 1.5]}).to_pandas()
+    models = [_Model(f"m{i}", "y", "x") for i in range(64)]
+    with pytest.raises(ValueError, match="63"):
+        _Block(models, frame, {}, "ID")

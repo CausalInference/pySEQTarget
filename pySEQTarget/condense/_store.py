@@ -1,4 +1,6 @@
 import json
+import shutil
+import weakref
 from pathlib import Path
 
 import polars as pl
@@ -17,7 +19,7 @@ class RecordStore:
         self._index = pl.read_parquet(self.path / "index.parquet")
 
     @classmethod
-    def write(cls, data, id_col, path, people_per_shard=10_000):
+    def write(cls, data, id_col, path, people_per_shard=10_000, temporary=False):
         """
         Writes a dataframe to a new store
 
@@ -25,6 +27,7 @@ class RecordStore:
         :param id_col: Column name of the ID
         :param path: Directory to write to
         :param people_per_shard: People per parquet file
+        :param temporary: Delete the directory once the store is garbage collected
         :rtype: RecordStore
         """
         path = Path(path)
@@ -47,7 +50,11 @@ class RecordStore:
         index.write_parquet(path / "index.parquet")
         meta = {"id_col": id_col, "n_shards": len(shards)}
         (path / "meta.json").write_text(json.dumps(meta))
-        return cls(path)
+        store = cls(path)
+        if temporary:
+            # copies unpickled in other processes do not carry the finalizer
+            weakref.finalize(store, shutil.rmtree, path, True)
+        return store
 
     def ids(self):
         """

@@ -696,7 +696,8 @@ def condense(
             b = _recorded(a, batch) if self.weight_preexpansion else _expanded(a, batch)
             rows = record_block.matrices(_record_frame(a, b))
             timings["record"] += time.perf_counter() - t
-            parts.append(_condense_batch(setup, rows, k_record, timings))
+            if len(rows.ids):
+                parts.append(_condense_batch(setup, rows, k_record, timings))
         record = CondensedBlock(record_block, parts, self.id_col)
         if center == "record":
             fits = {name: record.fit(name) for name in record.models}
@@ -708,6 +709,8 @@ def condense(
             bounds = _Tally()
             for batch in store.batches(people_per_batch):
                 b = _expanded(a, batch)
+                if b.DT.is_empty():
+                    continue
                 _bind_weights(a, b)
                 bounds.add(b.DT["weight"].to_numpy())
             a.weight_stats = bounds.frame()
@@ -722,6 +725,9 @@ def condense(
             t = time.perf_counter()
             b = _expanded(a, batch)
             timings["expand"] += time.perf_counter() - t
+            if b.DT.is_empty():
+                # no one in the batch is eligible
+                continue
             if self.weighted:
                 t = time.perf_counter()
                 frame = _record_frame(a, b)
@@ -766,8 +772,11 @@ def condense(
     for batch in store.batches(people_per_batch):
         t = time.perf_counter()
         b = _expanded(a, batch)
-        baseline.append(_baseline_rows(a, b))
         timings["expand"] += time.perf_counter() - t
+        if b.DT.is_empty():
+            # no one in the batch is eligible
+            continue
+        baseline.append(_baseline_rows(a, b))
 
         S = None
         if self.weighted:
@@ -784,7 +793,8 @@ def condense(
         if self.weighted:
             S = frame[s_cols].to_numpy(float)[rows.keep]
         timings["expand"] += time.perf_counter() - t
-        parts.append(_condense_batch(setup, rows, k, timings, S))
+        if len(rows.ids):
+            parts.append(_condense_batch(setup, rows, k, timings, S))
 
     c = Condensed(
         CondensedBlock(outcome_block, parts, self.id_col),
