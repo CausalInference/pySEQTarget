@@ -3,9 +3,8 @@ import time
 import numpy as np
 import torch
 
-# byte budgets for row and unit chunks
-_ROW_BYTES = 2**29
-_UNIT_BYTES = 2**32
+# byte budget for unit chunks
+_UNIT_BYTES = 2**30
 
 
 def _rates(X, probes):
@@ -22,29 +21,25 @@ def _rates(X, probes):
 
 
 def _targets(X, w, seg, probes, n_units, S=None):
+    # one product per unit over its own contiguous rows
     D = X.shape[1]
     G = H = C = None
-    widest = D if S is None else max(D, S.shape[1])
-    step = max(1, int(_ROW_BYTES / (8 * D * widest * 4)))
-    for start in range(0, len(X), step):
-        rows = slice(start, start + step)
-        x, s = X[rows], seg[rows]
+    ends = torch.bincount(seg, minlength=n_units).cumsum(0).tolist()
+    for u, (a, e) in enumerate(zip([0] + ends[:-1], ends)):
+        x, wu = X[a:e], w[a:e, None]
         first, second = _rates(x, probes)
         if G is None:
             G = X.new_zeros(n_units, first.shape[1], D)
             H = X.new_zeros(n_units, second.shape[1], D, D)
             if S is not None:
                 C = X.new_zeros(n_units, first.shape[1], D, S.shape[1])
-        v = w[rows, None] * first
-        G.index_add_(0, s, v[:, :, None] * x[:, None, :])
-        xx = x[:, :, None] * x[:, None, :]
-        vv = w[rows, None] * second
-        for b in range(second.shape[1]):
-            H[:, b].index_add_(0, s, vv[:, b, None, None] * xx)
+        v = wu * first
+        G[u] = v.T @ x
+        xx = (x[:, :, None] * x[:, None, :]).flatten(1)
+        H[u] = ((wu * second).T @ xx).view(-1, D, D)
         if S is not None:
-            xs = x[:, :, None] * S[rows][:, None, :]
-            for b in range(first.shape[1]):
-                C[:, b].index_add_(0, s, v[:, b, None, None] * xs)
+            xs = (x[:, :, None] * S[a:e, None, :]).flatten(1)
+            C[u] = (v.T @ xs).view(-1, D, S.shape[1])
     return G, H, C
 
 
