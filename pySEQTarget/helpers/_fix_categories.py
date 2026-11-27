@@ -15,7 +15,7 @@ def _model_design_info(model):
 
     statsmodels 0.15 renamed ``model.data.design_info`` to the engine-neutral
     ``model.data.model_spec`` (still a patsy DesignInfo under the default patsy
-    engine); older statsmodels and the glum/jax wrappers use ``design_info``.
+    engine); older statsmodels and the glum/torch wrappers use ``design_info``.
     Check both so every backend and version resolves through one place.
     """
     inner = getattr(model, "model", None)

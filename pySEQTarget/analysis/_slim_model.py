@@ -40,11 +40,11 @@ def _slim_model(model):
     One outcome model is kept per bootstrap replicate until the end of the run,
     and a statsmodels GLM holds its full data frame, design matrix, weights and
     fitted values — about 260 bytes per expanded row — so memory grew with the
-    expanded data times ``bootstrap_nboot``. The glum and jax wrappers keep the
+    expanded data times ``bootstrap_nboot``. The glum and torch wrappers keep the
     design matrix and weights in the same way.
     """
     if hasattr(model, "_X_design"):
-        # glum/jax wrappers: cache the covariance before dropping its inputs
+        # glum and torch wrappers cache the covariance before dropping inputs
         model.remove_data()
         return model
 

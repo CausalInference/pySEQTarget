@@ -13,6 +13,12 @@ from ..helpers._spline import _bake_spline_knots
 from ..weighting._weight_stats import _weight_bounds
 
 
+def _followup_spline_term(df):
+    """The followup spline before its knots are baked; centred, so the spline
+    is not collinear with the intercept."""
+    return f'cr(followup, df={df}, constraints="center")'
+
+
 def _apply_spline_formula(formula, indicator_squared, spline):
     # Mark interactions first, so dropping the bare followup terms below
     # cannot reach into the spline, which contains "followup" itself
@@ -102,10 +108,8 @@ def _outcome_fit(
 
     if self.followup_spline:
         if getattr(self, "_current_boot_idx", None) is None:
-            # Centred, so the spline is not collinear with the intercept
             self._followup_spline_knots = _bake_spline_knots(
-                f'cr(followup, df={self.followup_spline_df}, constraints="center")',
-                self.DT,
+                _followup_spline_term(self.followup_spline_df), self.DT
             )
         formula = _apply_spline_formula(
             formula, self.indicator_squared, self._followup_spline_knots
@@ -137,10 +141,10 @@ def _outcome_fit(
                 design_cache=cache,
             )
 
-        case "jax":
-            from ..helpers._jax_fit import _fit_jax
+        case "torch":
+            from ..helpers._torch_fit import _fit_torch
 
-            return _fit_jax(
+            return _fit_torch(
                 full_formula,
                 df_pd,
                 var_weights=var_weights,

@@ -86,13 +86,14 @@ def _eof_measure(self, DT):
     return measured
 
 
-def _eof_period_flags(self, DT):
-    """One row per trial-period that can reach the window, flagged with what it has."""
+def _eof_period_flags(self, DT, last=None):
+    """One row per trial-period that can reach the window, flagged with what it
+    has. ``last`` is the data's last period, default that of ``DT``."""
     k = self.end_of_fup_time
     w = self.end_of_fup_window
     valid = pl.col(self.outcome_col).is_not_null()
     in_window = valid & (pl.col("followup") >= k - w) & (pl.col("followup") <= k + w)
-    last = DT["period"].max()
+    last = DT["period"].max() if last is None else last
 
     return (
         DT.group_by([self.id_col, "trial"] + _eof_group_cols(self, DT))
@@ -155,7 +156,7 @@ def _eof_estimate(self):
     return est.join(totals, on=by, how="inner").sort(by)
 
 
-def _eof_counts(self, DT, unique):
+def _eof_counts(self, DT, unique, last=None):
     """Account for every trial-period at the end-of-follow-up time.
 
     Four mutually exclusive categories against the Eligible total: measured
@@ -173,7 +174,7 @@ def _eof_counts(self, DT, unique):
         "Excluded (no measurement)",
     ]
 
-    flags = _eof_period_flags(self, DT).with_columns(
+    flags = _eof_period_flags(self, DT, last).with_columns(
         pl.when(pl.col("at_k"))
         .then(pl.lit(levels[0]))
         .when(pl.col("in_window"))
@@ -198,8 +199,10 @@ def _eof_summary(self, DT):
     """N, mean and SD of the raw selected measurements per baseline arm — the
     unweighted analogue of the outcome count tables, reported for continuous
     outcomes where event counts have no meaning."""
-    by = _eof_group_cols(self, DT)
-    measured = _eof_measure(self, DT)
+    return _eof_summary_of(_eof_measure(self, DT), _eof_group_cols(self, DT))
+
+
+def _eof_summary_of(measured, by):
     return (
         measured.group_by(by)
         .agg(

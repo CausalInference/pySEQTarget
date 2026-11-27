@@ -1,4 +1,5 @@
 import datetime
+import tempfile
 import time
 import warnings
 from collections import Counter
@@ -39,6 +40,35 @@ def _collect_models(self, kind):
     return {
         val: [models[val][kind] for models in self.outcome_model if val in models]
         for val in self._unique_subgroups
+    }
+
+
+def _condensed_fit(self):
+    from .condense import condense
+
+    c = self.condensed = condense(self, self._store)
+    self.weight_stats = c.weight_stats
+    self.diagnostics = c.diagnostics
+    weights = c.fit_weights()
+    for name in ("cense_numerator", "cense_denominator"):
+        if name in weights:
+            setattr(self, f"{name}_model", weights[name])
+    for kind in ("numerator", "denominator"):
+        levels = range(len(self.treatment_level))
+        models = [weights.get(f"{kind}_{i}") for i in levels]
+        if any(m is not None for m in models):
+            setattr(self, f"{kind}_model", models)
+    if self.end_of_fup:
+        return {"eof": None}
+    if self.bootstrap_nboot > 0:
+        c.bootstrap(self.bootstrap_nboot, self.bootstrap_sample)
+    kinds = ["outcome"] + (["compevent"] if self.compevent_colname else [])
+    if self.subgroup_colname is None:
+        return {kind: c.fit(kind) for kind in kinds}
+    self._unique_subgroups = c.census.subgroups
+    return {
+        val: {kind: c.fit(kind, subgroup=val) for kind in kinds}
+        for val in c.census.subgroups
     }
 
 
@@ -164,6 +194,21 @@ class SEQuential:
         """
         start = time.perf_counter()
 
+        if self.condense:
+            # expansion happens in batches at fit
+            from .condense import RecordStore
+
+            # removed when the analysis no longer holds it
+            path = tempfile.mkdtemp(
+                prefix="seq_record_", dir=self.offload_dir if self.offload else None
+            )
+            self._store = RecordStore.write(
+                self.data, self.id_col, path, temporary=True
+            )
+            self.DT = None
+            self._expansion_time = _format_time(start, time.perf_counter())
+            return
+
         if self.verbose:
             n, m = self.data.shape
             print(f"Full dataset: {n:,} observations, {m} variables")
@@ -266,6 +311,8 @@ class SEQuential:
                 setattr(self, key, value)
             else:
                 raise ValueError(f"Unknown argument: {key}")
+        if self.condense:
+            return
         UIDs = (
             self.DT.select(pl.col(self.id_col))
             .unique()
@@ -298,10 +345,17 @@ class SEQuential:
         """
         Fits weight models (numerator, denominator, censoring) and outcome models (outcome, competing event)
         """
-        if self.bootstrap_nboot > 0 and not hasattr(self, "_boot_samples"):
+        if (
+            self.bootstrap_nboot > 0
+            and not self.condense
+            and not hasattr(self, "_boot_samples")
+        ):
             raise ValueError(
                 "Bootstrap sampling not found. Please run the 'bootstrap' method before fitting with bootstrapping."
             )
+        if self.condense:
+            return _condensed_fit(self)
+
         boot_idx = None
         if hasattr(self, "_current_boot_idx"):
             boot_idx = self._current_boot_idx
@@ -464,6 +518,17 @@ class SEQuential:
 
         start = time.perf_counter()
 
+        if self.condense:
+            out = self.condensed.survival(
+                CI=self.bootstrap_CI,
+                CI_method=self.bootstrap_CI_method,
+                risk_times=self.risk_times,
+            )
+            self.km_data = out.pop("km_data")
+            self.risk_estimates = out
+            self._survival_time = _format_time(start, time.perf_counter())
+            return
+
         risk_data = _pred_risk(self)
         surv_data = _calculate_survival(self, risk_data)
         self.km_data = _clamp(pl.concat([risk_data, surv_data]))
@@ -497,7 +562,15 @@ class SEQuential:
                 "method before assembling them."
             )
 
-        eof = _create_endoffup(self)
+        if self.condense:
+            eof = self.condensed.end_of_followup(
+                self.bootstrap_nboot,
+                self.bootstrap_sample,
+                CI=self.bootstrap_CI,
+                CI_method=self.bootstrap_CI_method,
+            )
+        else:
+            eof = _create_endoffup(self)
         self.eof_data = eof["eof_data"]
         self.eof_comparison = eof["eof_comparison"]
 
@@ -528,7 +601,12 @@ class SEQuential:
             raise ValueError(
                 "Outcome model not found. Please run the 'fit' method before calculating hazard ratio."
             )
-        self.hazard_ratio = _calculate_hazard(self)
+        if self.condense:
+            self.hazard_ratio = self.condensed.hazard(
+                CI=self.bootstrap_CI, CI_method=self.bootstrap_CI_method
+            )
+        else:
+            self.hazard_ratio = _calculate_hazard(self)
 
         end = time.perf_counter()
         self._hazard_time = _format_time(start, end)

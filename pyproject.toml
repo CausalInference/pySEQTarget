@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pySEQTarget"
-version = "0.14.5"
+version = "0.14.6"
 description = "Sequential Target Trial Emulation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -54,11 +54,13 @@ output = [
     "tabulate"
 ]
 gpu = [
-    "jax[cuda12]; sys_platform == 'linux' and python_version < '3.15'",
-    "jax; sys_platform != 'linux' and python_version < '3.15'",
+    "torch; python_version < '3.15'",
+]
+condense = [
+    "torch; python_version < '3.15'",
 ]
 dev = [
-    "pySEQTarget[output,gpu]",
+    "pySEQTarget[output,gpu,condense]",
     "pytest",
 ]
 
@@ -78,7 +80,7 @@ Repository = "https://github.com/CausalInference/pySEQTarget"
 dev = [
     "black",
     "isort",
-    "jax; python_version < '3.15'",
+    "torch; python_version < '3.15'",
     "pytest",
     "myst-parser",
     "piccolo_theme",
