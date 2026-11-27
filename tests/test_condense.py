@@ -11,6 +11,8 @@ from pandas.api.types import CategoricalDtype
 # needs torch
 torch = pytest.importorskip("torch")
 
+import statsmodels.api as sm  # noqa: E402
+
 from pySEQTarget import SEQopts, SEQuential  # noqa: E402
 from pySEQTarget.condense import RecordStore, condense  # noqa: E402
 from pySEQTarget.condense._census import _Census  # noqa: E402
@@ -26,13 +28,12 @@ from pySEQTarget.condense._weights import (_attach_sensitivities, _classes,
                                            _weight_models)
 from pySEQTarget.data import load_data  # noqa: E402
 
-import statsmodels.api as sm  # noqa: E402
-
 PRE = dict(weighted=True, weight_preexpansion=True)
 
 
 def _glm(X, y, w):
     return sm.GLM(y, X, family=sm.families.Binomial(), var_weights=w).fit()
+
 
 EXCUSED = dict(PRE, excused=True, excused_colnames=["excusedZero", "excusedOne"])
 EXCUSED3 = dict(
@@ -159,9 +160,7 @@ def test_census_reproduces_the_package_formulas(tmp_path):
 
     # the names carry the centring constants, equal to rounding (checked above)
     def names(columns):
-        return [
-            re.sub(r"constraints=\[\[[^]]*\]\]", "constraints", c) for c in columns
-        ]
+        return [re.sub(r"constraints=\[\[[^]]*\]\]", "constraints", c) for c in columns]
 
     exog_names = s.outcome_model[0]["outcome"].model.exog_names
     assert names(block.columns) == names(exog_names)
@@ -396,9 +395,7 @@ def weighted(tmp_path_factory):
     data = load_data("SEQdata")
     s = _fit("censoring", data, **PRE)
     store = RecordStore.write(data, "ID", tmp_path_factory.mktemp("store"))
-    c = condense(
-        _analysis("censoring", data, **PRE), store, k=32, gold_fraction=0.2
-    )
+    c = condense(_analysis("censoring", data, **PRE), store, k=32, gold_fraction=0.2)
     return data, s, c, store
 
 
@@ -896,8 +893,11 @@ def test_trial_selection(tmp_path):
     assert abs(count(kept, 0) / count(everyone, 0) - 0.5) < 0.05
     # the same trials are kept whatever the batches
     batches = pl.concat([_expanded(a, r).DT for r in store.batches(40)])
-    assert batches.select(trials).unique().sort(trials).equals(
-        kept.select(trials).unique().sort(trials)
+    assert (
+        batches.select(trials)
+        .unique()
+        .sort(trials)
+        .equals(kept.select(trials).unique().sort(trials))
     )
     # and the condensed fit is the fit on those rows
     c = condense(a, store, gold_fraction=0.5)

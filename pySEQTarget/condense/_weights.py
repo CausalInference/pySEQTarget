@@ -317,9 +317,7 @@ def _attach_sensitivities(self, block, theta, frame, b):
     )
     filled = ["_step", "_ratio"] + [f"_d{kind}{j}" for kind in "sr" for j in range(D)]
     DT = b.DT.join(
-        parts.with_columns(
-            [pl.col(col).cast(b.DT.schema[col]) for col in keys]
-        ),
+        parts.with_columns([pl.col(col).cast(b.DT.schema[col]) for col in keys]),
         on=list(keys),
         how="left",
         maintain_order="left",
@@ -346,10 +344,7 @@ def _attach_sensitivities(self, block, theta, frame, b):
         # excused override from the switch to the trial end
         DT = DT.with_columns(
             (
-                pl.col("isExcused")
-                .fill_null(False)
-                .cum_sum()
-                .over([id_col, "trial"])
+                pl.col("isExcused").fill_null(False).cum_sum().over([id_col, "trial"])
                 > 0
             ).alias("_excused")
         )
@@ -401,9 +396,7 @@ def _attach_sensitivities(self, block, theta, frame, b):
     helpers = ["_step", "_ratio", "_override", "_logw"]
     if self.excused:
         helpers.append("_excused")
-    helpers += [
-        f"_d{kind}{j}" for kind in "sr" for j in range(D)
-    ]
+    helpers += [f"_d{kind}{j}" for kind in "sr" for j in range(D)]
     b.DT = DT.with_columns(
         [pl.when(clipped).then(0.0).otherwise(pl.col(c)).alias(c) for c in s_cols]
     ).drop(helpers)

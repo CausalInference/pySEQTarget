@@ -26,9 +26,7 @@ def _replicates(c, nboot, sample, seed):
     for _ in range(nboot):
         ids, n = np.unique(rng.choice(c.cohort, size=size), return_counts=True)
         counts = dict(zip(ids.tolist(), n.tolist()))
-        fits = {
-            m: c.fit(m, counts=counts).params.to_numpy() for m in c.outcome.models
-        }
+        fits = {m: c.fit(m, counts=counts).params.to_numpy() for m in c.outcome.models}
         out.append((counts, fits))
     return out
 
